@@ -1,0 +1,12 @@
+[package]
+name = "callsoro-check"
+description = "Semantic validation and type checking for CallSoro"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+callsoro-syntax = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
