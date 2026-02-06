@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Trashes
+
+# Rust
+/target
+**/*.rs.bk
+
+# Node (just in case)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# IDEs & Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# AI / Agent configurations
+.claude/
+.gemini/
+.agent/
