@@ -1,0 +1,124 @@
+---
+source: crates/callsoro-syntax/src/parser.rs
+expression: prog
+---
+Program {
+    directives: [
+        Network {
+            value: "testnet",
+            span: Span {
+                start: 37,
+                end: 52,
+                line: 2,
+                col: 1,
+            },
+        },
+        Source {
+            value: "GB3MRDIQO2HFBLAG2CSMHPYZFVPQOYPEV3BUKY2GMQKKQRMO4OERGKHR",
+            span: Span {
+                start: 53,
+                end: 117,
+                line: 3,
+                col: 1,
+            },
+        },
+        Fee {
+            value: 100000,
+            span: Span {
+                start: 118,
+                end: 132,
+                line: 4,
+                col: 1,
+            },
+        },
+        Timeout {
+            value: 60,
+            span: Span {
+                start: 133,
+                end: 143,
+                line: 5,
+                col: 1,
+            },
+        },
+    ],
+    calls: [
+        Call {
+            contract: "CB6TLGNLWKZR4VKQPD3FNRPNEUTXOKVMI7AF3WS2QBSF2VMHQGER7BLH",
+            method: "approve",
+            args: [
+                Address(
+                    "GB3MRDIQO2HFBLAG2CSMHPYZFVPQOYPEV3BUKY2GMQKKQRMO4OERGKHR",
+                    Span {
+                        start: 218,
+                        end: 285,
+                        line: 8,
+                        col: 3,
+                    },
+                ),
+                Address(
+                    "GCVZ6KBMRLE32NB4UU5K37RPJNPFUNQZFYOPKJMZODDTQX4RREZDDMI",
+                    Span {
+                        start: 289,
+                        end: 355,
+                        line: 9,
+                        col: 3,
+                    },
+                ),
+                I128(
+                    "5000000",
+                    Span {
+                        start: 359,
+                        end: 374,
+                        line: 10,
+                        col: 3,
+                    },
+                ),
+            ],
+            span: Span {
+                start: 145,
+                end: 376,
+                line: 7,
+                col: 1,
+            },
+        },
+        Call {
+            contract: "CB6TLGNLWKZR4VKQPD3FNRPNEUTXOKVMI7AF3WS2QBSF2VMHQGER7BLH",
+            method: "transfer",
+            args: [
+                Address(
+                    "GB3MRDIQO2HFBLAG2CSMHPYZFVPQOYPEV3BUKY2GMQKKQRMO4OERGKHR",
+                    Span {
+                        start: 452,
+                        end: 519,
+                        line: 14,
+                        col: 3,
+                    },
+                ),
+                Address(
+                    "GCVZ6KBMRLE32NB4UU5K37RPJNPFUNQZFYOPKJMZODDTQX4RREZDDMI",
+                    Span {
+                        start: 523,
+                        end: 589,
+                        line: 15,
+                        col: 3,
+                    },
+                ),
+                I128(
+                    "5000000",
+                    Span {
+                        start: 593,
+                        end: 608,
+                        line: 16,
+                        col: 3,
+                    },
+                ),
+            ],
+            span: Span {
+                start: 378,
+                end: 610,
+                line: 13,
+                col: 1,
+            },
+        },
+    ],
+}

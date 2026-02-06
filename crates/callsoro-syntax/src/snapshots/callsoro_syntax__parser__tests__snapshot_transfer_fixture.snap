@@ -1,0 +1,85 @@
+---
+source: crates/callsoro-syntax/src/parser.rs
+expression: prog
+---
+Program {
+    directives: [
+        Network {
+            value: "testnet",
+            span: Span {
+                start: 34,
+                end: 49,
+                line: 2,
+                col: 1,
+            },
+        },
+        Source {
+            value: "GB3MRDIQO2HFBLAG2CSMHPYZFVPQOYPEV3BUKY2GMQKKQRMO4OERGKHR",
+            span: Span {
+                start: 50,
+                end: 114,
+                line: 3,
+                col: 1,
+            },
+        },
+        Fee {
+            value: 100000,
+            span: Span {
+                start: 115,
+                end: 129,
+                line: 4,
+                col: 1,
+            },
+        },
+        Timeout {
+            value: 60,
+            span: Span {
+                start: 130,
+                end: 140,
+                line: 5,
+                col: 1,
+            },
+        },
+    ],
+    calls: [
+        Call {
+            contract: "CB6TLGNLWKZR4VKQPD3FNRPNEUTXOKVMI7AF3WS2QBSF2VMHQGER7BLH",
+            method: "transfer",
+            args: [
+                Address(
+                    "GB3MRDIQO2HFBLAG2CSMHPYZFVPQOYPEV3BUKY2GMQKKQRMO4OERGKHR",
+                    Span {
+                        start: 216,
+                        end: 283,
+                        line: 8,
+                        col: 3,
+                    },
+                ),
+                Address(
+                    "GCVZ6KBMRLE32NB4UU5K37RPJNPFUNQZFYOPKJMZODDTQX4RREZDDMI",
+                    Span {
+                        start: 287,
+                        end: 353,
+                        line: 9,
+                        col: 3,
+                    },
+                ),
+                I128(
+                    "10000000",
+                    Span {
+                        start: 357,
+                        end: 373,
+                        line: 10,
+                        col: 3,
+                    },
+                ),
+            ],
+            span: Span {
+                start: 142,
+                end: 375,
+                line: 7,
+                col: 1,
+            },
+        },
+    ],
+}

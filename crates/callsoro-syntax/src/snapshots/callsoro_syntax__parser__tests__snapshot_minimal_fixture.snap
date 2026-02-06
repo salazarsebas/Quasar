@@ -1,0 +1,49 @@
+---
+source: crates/callsoro-syntax/src/parser.rs
+expression: prog
+---
+Program {
+    directives: [
+        Network {
+            value: "testnet",
+            span: Span {
+                start: 0,
+                end: 15,
+                line: 1,
+                col: 1,
+            },
+        },
+        Source {
+            value: "GB3MRDIQO2HFBLAG2CSMHPYZFVPQOYPEV3BUKY2GMQKKQRMO4OERGKHR",
+            span: Span {
+                start: 16,
+                end: 80,
+                line: 2,
+                col: 1,
+            },
+        },
+    ],
+    calls: [
+        Call {
+            contract: "CB6TLGNLWKZR4VKQPD3FNRPNEUTXOKVMI7AF3WS2QBSF2VMHQGER7BLH",
+            method: "balance",
+            args: [
+                Address(
+                    "GB3MRDIQO2HFBLAG2CSMHPYZFVPQOYPEV3BUKY2GMQKKQRMO4OERGKHR",
+                    Span {
+                        start: 155,
+                        end: 222,
+                        line: 5,
+                        col: 3,
+                    },
+                ),
+            ],
+            span: Span {
+                start: 82,
+                end: 224,
+                line: 4,
+                col: 1,
+            },
+        },
+    ],
+}
