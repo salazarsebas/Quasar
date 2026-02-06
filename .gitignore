@@ -8,6 +8,9 @@
 /target
 **/*.rs.bk
 
+# Insta snapshot pending files (accepted .snap files ARE committed)
+*.snap.new
+
 # Node (just in case)
 node_modules/
 npm-debug.log
@@ -23,3 +26,9 @@ yarn-error.log
 .claude/
 .gemini/
 .agent/
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key

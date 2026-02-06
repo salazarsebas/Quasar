@@ -1,0 +1,23 @@
+---
+source: crates/callsoro-syntax/src/lexer.rs
+expression: display
+---
+- "1:1 network"
+- "1:9 ident(testnet)"
+- "1:16 newline"
+- "2:1 source"
+- "2:9 ident(GB3MRDIQO2HFBLAG2CSMHPYZFVPQOYPEV3BUKY2GMQKKQRMO4OERGKHR)"
+- "2:65 newline"
+- "4:1 call"
+- "4:6 ident(CB6TLGNLWKZR4VKQPD3FNRPNEUTXOKVMI7AF3WS2QBSF2VMHQGER7BLH)"
+- "4:63 ident(balance)"
+- "4:70 ("
+- "4:71 newline"
+- "5:3 ident(address)"
+- "5:10 ("
+- "5:11 string(\"GB3MRDIQO2HFBLAG2CSMHPYZFVPQOYPEV3BUKY2GMQKKQRMO4OERGKHR\")"
+- "5:69 )"
+- "5:70 newline"
+- "6:1 )"
+- "6:2 newline"
+- "7:1 EOF"
