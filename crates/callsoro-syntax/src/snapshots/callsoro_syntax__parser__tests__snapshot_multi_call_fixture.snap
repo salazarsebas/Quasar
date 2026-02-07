@@ -14,7 +14,7 @@ Program {
             },
         },
         Source {
-            value: "GB3MRDIQO2HFBLAG2CSMHPYZFVPQOYPEV3BUKY2GMQKKQRMO4OERGKHR",
+            value: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
             span: Span {
                 start: 53,
                 end: 117,
@@ -43,11 +43,11 @@ Program {
     ],
     calls: [
         Call {
-            contract: "CB6TLGNLWKZR4VKQPD3FNRPNEUTXOKVMI7AF3WS2QBSF2VMHQGER7BLH",
+            contract: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
             method: "approve",
             args: [
                 Address(
-                    "GB3MRDIQO2HFBLAG2CSMHPYZFVPQOYPEV3BUKY2GMQKKQRMO4OERGKHR",
+                    "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
                     Span {
                         start: 218,
                         end: 285,
@@ -56,10 +56,10 @@ Program {
                     },
                 ),
                 Address(
-                    "GCVZ6KBMRLE32NB4UU5K37RPJNPFUNQZFYOPKJMZODDTQX4RREZDDMI",
+                    "GAAQEAYEAUDAOCAJBIFQYDIOB4IBCEQTCQKRMFYYDENBWHA5DYPSABOV",
                     Span {
                         start: 289,
-                        end: 355,
+                        end: 356,
                         line: 9,
                         col: 3,
                     },
@@ -67,8 +67,8 @@ Program {
                 I128(
                     "5000000",
                     Span {
-                        start: 359,
-                        end: 374,
+                        start: 360,
+                        end: 375,
                         line: 10,
                         col: 3,
                     },
@@ -76,29 +76,29 @@ Program {
             ],
             span: Span {
                 start: 145,
-                end: 376,
+                end: 377,
                 line: 7,
                 col: 1,
             },
         },
         Call {
-            contract: "CB6TLGNLWKZR4VKQPD3FNRPNEUTXOKVMI7AF3WS2QBSF2VMHQGER7BLH",
+            contract: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
             method: "transfer",
             args: [
                 Address(
-                    "GB3MRDIQO2HFBLAG2CSMHPYZFVPQOYPEV3BUKY2GMQKKQRMO4OERGKHR",
+                    "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
                     Span {
-                        start: 452,
-                        end: 519,
+                        start: 453,
+                        end: 520,
                         line: 14,
                         col: 3,
                     },
                 ),
                 Address(
-                    "GCVZ6KBMRLE32NB4UU5K37RPJNPFUNQZFYOPKJMZODDTQX4RREZDDMI",
+                    "GAAQEAYEAUDAOCAJBIFQYDIOB4IBCEQTCQKRMFYYDENBWHA5DYPSABOV",
                     Span {
-                        start: 523,
-                        end: 589,
+                        start: 524,
+                        end: 591,
                         line: 15,
                         col: 3,
                     },
@@ -106,16 +106,16 @@ Program {
                 I128(
                     "5000000",
                     Span {
-                        start: 593,
-                        end: 608,
+                        start: 595,
+                        end: 610,
                         line: 16,
                         col: 3,
                     },
                 ),
             ],
             span: Span {
-                start: 378,
-                end: 610,
+                start: 379,
+                end: 612,
                 line: 13,
                 col: 1,
             },

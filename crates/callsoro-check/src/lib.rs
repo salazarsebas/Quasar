@@ -1,1 +1,4 @@
-// Semantic validation — will be populated in Phase 3.
+mod strkey;
+pub mod validate;
+
+pub use validate::{Diagnostic, Severity, Validator};

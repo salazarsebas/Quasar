@@ -14,7 +14,7 @@ Program {
             },
         },
         Source {
-            value: "GB3MRDIQO2HFBLAG2CSMHPYZFVPQOYPEV3BUKY2GMQKKQRMO4OERGKHR",
+            value: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
             span: Span {
                 start: 55,
                 end: 119,
@@ -43,7 +43,7 @@ Program {
     ],
     calls: [
         Call {
-            contract: "CB6TLGNLWKZR4VKQPD3FNRPNEUTXOKVMI7AF3WS2QBSF2VMHQGER7BLH",
+            contract: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
             method: "test_types",
             args: [
                 Bool(
@@ -146,7 +146,7 @@ Program {
                     },
                 ),
                 Address(
-                    "GB3MRDIQO2HFBLAG2CSMHPYZFVPQOYPEV3BUKY2GMQKKQRMO4OERGKHR",
+                    "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
                     Span {
                         start: 505,
                         end: 572,
@@ -155,7 +155,7 @@ Program {
                     },
                 ),
                 Address(
-                    "CB6TLGNLWKZR4VKQPD3FNRPNEUTXOKVMI7AF3WS2QBSF2VMHQGER7BLH",
+                    "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
                     Span {
                         start: 576,
                         end: 643,
