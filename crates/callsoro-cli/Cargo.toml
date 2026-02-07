@@ -13,6 +13,7 @@ path = "src/main.rs"
 callsoro-syntax = { workspace = true }
 callsoro-check = { workspace = true }
 callsoro-compile = { workspace = true }
+callsoro-exec = { workspace = true }
 clap = { workspace = true }
 serde_json = { workspace = true }
 

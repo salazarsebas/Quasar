@@ -3,6 +3,7 @@ use std::process;
 
 use callsoro_check::{Diagnostic, Resolver, Severity, Validator};
 use callsoro_compile::{Compiler, JsonIR, XdrCompiler};
+use callsoro_exec::Simulator;
 use callsoro_syntax::ast::{Call, ConstDecl, ConstValue, Directive, MapEntry, Program, Value};
 use callsoro_syntax::lexer::Lexer;
 use callsoro_syntax::parser::Parser;
@@ -41,6 +42,17 @@ enum Commands {
         /// Output file (default: stdout)
         #[arg(short)]
         o: Option<String>,
+    },
+    /// Simulate a .soro file against Soroban RPC
+    Simulate {
+        /// Input .soro file
+        file: String,
+        /// RPC endpoint URL (overrides CALLSORO_RPC_URL env and network default)
+        #[arg(long)]
+        rpc_url: Option<String>,
+        /// Output raw JSON instead of human-readable text
+        #[arg(long)]
+        json: bool,
     },
     /// Validate a .soro file (errors + warnings)
     Check {
@@ -415,6 +427,63 @@ fn main() {
                         });
                     } else {
                         println!("{}", output);
+                    }
+                }
+                PipelineResult::Errors => process::exit(1),
+            }
+        }
+
+        Commands::Simulate {
+            file,
+            rpc_url,
+            json,
+        } => {
+            let source = read_file(&file, c);
+            match run_pipeline(&source, &file, c) {
+                PipelineResult::Compiled(ir) => {
+                    let transactions = match XdrCompiler::compile(&ir) {
+                        Ok(t) => t,
+                        Err(e) => {
+                            eprintln!("{}{}error{}: {}", c.red, c.bold, c.reset, e);
+                            process::exit(1);
+                        }
+                    };
+
+                    let url = match callsoro_exec::simulator::resolve_rpc_url(
+                        rpc_url.as_deref(),
+                        &ir.network,
+                    ) {
+                        Ok(u) => u,
+                        Err(e) => {
+                            eprintln!("{}{}error{}: {}", c.red, c.bold, c.reset, e);
+                            process::exit(1);
+                        }
+                    };
+
+                    let simulator = Simulator::new(&url);
+                    let results = match simulator.simulate(&transactions, &ir) {
+                        Ok(r) => r,
+                        Err(e) => {
+                            eprintln!("{}{}error{}: {}", c.red, c.bold, c.reset, e);
+                            process::exit(1);
+                        }
+                    };
+
+                    if json {
+                        let json_out = serde_json::to_string_pretty(&results)
+                            .expect("JSON serialization failed");
+                        println!("{}", json_out);
+                    } else {
+                        for result in &results {
+                            print!(
+                                "{}",
+                                callsoro_exec::simulator::format_human_result(
+                                    result,
+                                    results.len(),
+                                    ir.signing.fee_stroops as u32,
+                                )
+                            );
+                        }
                     }
                 }
                 PipelineResult::Errors => process::exit(1),
@@ -959,6 +1028,91 @@ mod tests {
         assert!(
             stderr.contains("undefined name 'missing'"),
             "stderr: {}",
+            stderr
+        );
+    }
+
+    // ---- Simulate ----
+
+    #[test]
+    fn simulate_help_shows_subcommand() {
+        build_binary();
+        let output = Command::new(cargo_bin())
+            .args(["simulate", "--help"])
+            .output()
+            .expect("failed to run");
+        assert!(output.status.success());
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.contains("--rpc-url"), "stdout: {}", stdout);
+        assert!(stdout.contains("--json"), "stdout: {}", stdout);
+    }
+
+    #[test]
+    fn simulate_unreachable_rpc_exits_1() {
+        build_binary();
+        let output = Command::new(cargo_bin())
+            .args([
+                "simulate",
+                fixtures_dir().join("transfer.soro").to_str().unwrap(),
+                "--rpc-url",
+                "http://127.0.0.1:1",
+            ])
+            .arg("--no-color")
+            .output()
+            .expect("failed to run");
+        assert!(!output.status.success(), "should exit 1 on unreachable RPC");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("error"),
+            "stderr should contain error: {}",
+            stderr
+        );
+    }
+
+    #[test]
+    fn simulate_json_flag_accepted() {
+        build_binary();
+        // This will fail at the network layer but --json should be accepted as a flag
+        let output = Command::new(cargo_bin())
+            .args([
+                "simulate",
+                fixtures_dir().join("transfer.soro").to_str().unwrap(),
+                "--rpc-url",
+                "http://127.0.0.1:1",
+                "--json",
+            ])
+            .arg("--no-color")
+            .output()
+            .expect("failed to run");
+        // Exit 1 because unreachable, but the flag was accepted (no "unknown flag" error)
+        assert!(!output.status.success());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !stderr.contains("unexpected argument"),
+            "should accept --json flag: {}",
+            stderr
+        );
+    }
+
+    #[test]
+    fn simulate_missing_rpc_url_uses_default() {
+        build_binary();
+        // transfer.soro uses testnet, so it should use the default testnet URL
+        // The call will fail (we're not on testnet) but it should attempt the connection
+        let output = Command::new(cargo_bin())
+            .args([
+                "simulate",
+                fixtures_dir().join("transfer.soro").to_str().unwrap(),
+            ])
+            .arg("--no-color")
+            .env_remove("CALLSORO_RPC_URL")
+            .output()
+            .expect("failed to run");
+        // It will fail (network) but NOT with "no default RPC URL" error
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !stderr.contains("no default RPC URL"),
+            "should resolve default testnet URL: {}",
             stderr
         );
     }
