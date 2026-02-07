@@ -74,6 +74,8 @@ dependencies = [
  "callsoro-compile",
  "callsoro-syntax",
  "clap",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
