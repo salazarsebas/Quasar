@@ -1,1 +1,5 @@
-// JSON IR compiler — will be populated in Phase 4.
+pub mod compile;
+pub mod ir;
+
+pub use compile::Compiler;
+pub use ir::JsonIR;

@@ -1,0 +1,106 @@
+---
+source: crates/callsoro-compile/src/compile.rs
+expression: json
+---
+{
+  "version": 1,
+  "network": "testnet",
+  "network_passphrase": "Test SDF Network ; September 2015",
+  "calls": [
+    {
+      "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+      "method": "test_types",
+      "args": [
+        {
+          "type": "bool",
+          "value": true
+        },
+        {
+          "type": "bool",
+          "value": false
+        },
+        {
+          "type": "u32",
+          "value": 42
+        },
+        {
+          "type": "i32",
+          "value": -1
+        },
+        {
+          "type": "u64",
+          "value": 18446744073709551615
+        },
+        {
+          "type": "i64",
+          "value": -9223372036854775808
+        },
+        {
+          "type": "u128",
+          "value": "340282366920938463463374607431768211455"
+        },
+        {
+          "type": "i128",
+          "value": "-170141183460469231731687303715884105728"
+        },
+        {
+          "type": "string",
+          "value": "hello world"
+        },
+        {
+          "type": "symbol",
+          "value": "transfer"
+        },
+        {
+          "type": "bytes",
+          "value": "0xdeadbeef"
+        },
+        {
+          "type": "address",
+          "value": "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"
+        },
+        {
+          "type": "address",
+          "value": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4"
+        },
+        {
+          "type": "vec",
+          "value": [
+            {
+              "type": "u32",
+              "value": 1
+            },
+            {
+              "type": "u32",
+              "value": 2
+            },
+            {
+              "type": "u32",
+              "value": 3
+            }
+          ]
+        },
+        {
+          "type": "map",
+          "value": [
+            {
+              "key": {
+                "type": "symbol",
+                "value": "name"
+              },
+              "value": {
+                "type": "string",
+                "value": "CallSoro"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "signing": {
+    "source": "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+    "fee_stroops": 100000,
+    "timeout_seconds": 30
+  }
+}
