@@ -2,7 +2,7 @@ use std::fs;
 use std::process;
 
 use callsoro_check::{Diagnostic, Resolver, Severity, Validator};
-use callsoro_compile::Compiler;
+use callsoro_compile::{Compiler, JsonIR, XdrCompiler};
 use callsoro_syntax::ast::{Call, ConstDecl, ConstValue, Directive, MapEntry, Program, Value};
 use callsoro_syntax::lexer::Lexer;
 use callsoro_syntax::parser::Parser;
@@ -28,6 +28,14 @@ struct Cli {
 enum Commands {
     /// Compile a .soro file to JSON IR
     Compile {
+        /// Input .soro file
+        file: String,
+        /// Output file (default: stdout)
+        #[arg(short)]
+        o: Option<String>,
+    },
+    /// Compile a .soro file to base64 XDR (one line per call)
+    Xdr {
         /// Input .soro file
         file: String,
         /// Output file (default: stdout)
@@ -173,7 +181,7 @@ fn format_lex_error(
 // ---------------------------------------------------------------------------
 
 enum PipelineResult {
-    Compiled(String),
+    Compiled(JsonIR),
     Errors,
 }
 
@@ -220,9 +228,7 @@ fn run_pipeline(source: &str, path: &str, c: &Colors) -> PipelineResult {
 
     // Compile
     let ir = Compiler::compile(&program);
-    let json = serde_json::to_string_pretty(&ir).expect("JSON serialization failed");
-
-    PipelineResult::Compiled(json)
+    PipelineResult::Compiled(ir)
 }
 
 // ---------------------------------------------------------------------------
@@ -354,7 +360,9 @@ fn main() {
         Commands::Compile { file, o } => {
             let source = read_file(&file, c);
             match run_pipeline(&source, &file, c) {
-                PipelineResult::Compiled(json) => {
+                PipelineResult::Compiled(ir) => {
+                    let json =
+                        serde_json::to_string_pretty(&ir).expect("JSON serialization failed");
                     if let Some(output_path) = o {
                         fs::write(&output_path, &json).unwrap_or_else(|e| {
                             eprintln!(
@@ -365,6 +373,48 @@ fn main() {
                         });
                     } else {
                         println!("{}", json);
+                    }
+                }
+                PipelineResult::Errors => process::exit(1),
+            }
+        }
+
+        Commands::Xdr { file, o } => {
+            let source = read_file(&file, c);
+            match run_pipeline(&source, &file, c) {
+                PipelineResult::Compiled(ir) => {
+                    let transactions = match XdrCompiler::compile(&ir) {
+                        Ok(t) => t,
+                        Err(e) => {
+                            eprintln!("{}{}error{}: {}", c.red, c.bold, c.reset, e);
+                            process::exit(1);
+                        }
+                    };
+                    let mut output = String::new();
+                    for (i, tx) in transactions.iter().enumerate() {
+                        match XdrCompiler::to_xdr_base64(&tx.invoke_args) {
+                            Ok(b64) => {
+                                if i > 0 {
+                                    output.push('\n');
+                                }
+                                output.push_str(&b64);
+                            }
+                            Err(e) => {
+                                eprintln!("{}{}error{}: {}", c.red, c.bold, c.reset, e);
+                                process::exit(1);
+                            }
+                        }
+                    }
+                    if let Some(output_path) = o {
+                        fs::write(&output_path, &output).unwrap_or_else(|e| {
+                            eprintln!(
+                                "{}{}error{}: cannot write {}: {}",
+                                c.red, c.bold, c.reset, output_path, e
+                            );
+                            process::exit(1);
+                        });
+                    } else {
+                        println!("{}", output);
                     }
                 }
                 PipelineResult::Errors => process::exit(1),
@@ -761,6 +811,100 @@ mod tests {
             );
             let _: serde_json::Value = serde_json::from_slice(&output.stdout)
                 .unwrap_or_else(|e| panic!("{} produced invalid JSON: {}", name, e));
+        }
+    }
+
+    // ---- XDR ----
+
+    #[test]
+    fn xdr_produces_valid_base64() {
+        build_binary();
+        let output = Command::new(cargo_bin())
+            .args([
+                "xdr",
+                fixtures_dir().join("transfer.soro").to_str().unwrap(),
+            ])
+            .arg("--no-color")
+            .output()
+            .expect("failed to run");
+        assert!(output.status.success(), "exit code was not 0");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let b64 = stdout.trim();
+        assert!(!b64.is_empty(), "xdr output should not be empty");
+        // Verify it's valid base64 by decoding it back
+        use stellar_xdr::curr::{InvokeContractArgs, Limits, ReadXdr};
+        let decoded = InvokeContractArgs::from_xdr_base64(b64, Limits::none());
+        assert!(decoded.is_ok(), "should be valid XDR base64: {:?}", decoded);
+    }
+
+    #[test]
+    fn xdr_output_file() {
+        build_binary();
+        let tmp = tempfile::NamedTempFile::new().expect("failed to create temp file");
+        let tmp_path = tmp.path().to_str().unwrap().to_string();
+        let output = Command::new(cargo_bin())
+            .args([
+                "xdr",
+                fixtures_dir().join("transfer.soro").to_str().unwrap(),
+                "-o",
+                &tmp_path,
+            ])
+            .arg("--no-color")
+            .output()
+            .expect("failed to run");
+        assert!(output.status.success(), "exit code was not 0");
+        let contents = std::fs::read_to_string(&tmp_path).expect("cannot read output file");
+        assert!(!contents.is_empty(), "output file should not be empty");
+    }
+
+    #[test]
+    fn xdr_multi_call() {
+        build_binary();
+        let output = Command::new(cargo_bin())
+            .args([
+                "xdr",
+                fixtures_dir().join("multi_call.soro").to_str().unwrap(),
+            ])
+            .arg("--no-color")
+            .output()
+            .expect("failed to run");
+        assert!(output.status.success(), "exit code was not 0");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let lines: Vec<_> = stdout.trim().lines().collect();
+        assert_eq!(
+            lines.len(),
+            2,
+            "multi_call.soro has 2 calls, expect 2 XDR lines"
+        );
+    }
+
+    #[test]
+    fn xdr_all_fixtures() {
+        build_binary();
+        for name in &[
+            "transfer.soro",
+            "minimal.soro",
+            "all_types.soro",
+            "multi_call.soro",
+            "with_consts.soro",
+        ] {
+            let output = Command::new(cargo_bin())
+                .args(["xdr", fixtures_dir().join(name).to_str().unwrap()])
+                .arg("--no-color")
+                .output()
+                .unwrap_or_else(|e| panic!("failed to run for {}: {}", name, e));
+            assert!(
+                output.status.success(),
+                "{} failed: {}",
+                name,
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            assert!(
+                !stdout.trim().is_empty(),
+                "{} produced empty xdr output",
+                name
+            );
         }
     }
 

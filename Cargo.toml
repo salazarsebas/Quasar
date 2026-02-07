@@ -26,5 +26,9 @@ serde_json = "1"
 # CLI
 clap = { version = "4", features = ["derive"] }
 
+# Stellar
+stellar-xdr = { version = "25.0", default-features = false, features = ["std", "curr", "base64"] }
+stellar-strkey = "0.0.16"
+
 # Testing
 insta = { version = "1", features = ["yaml"] }

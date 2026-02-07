@@ -9,6 +9,8 @@ license.workspace = true
 callsoro-syntax = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+stellar-xdr = { workspace = true }
+stellar-strkey = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
