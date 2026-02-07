@@ -514,6 +514,7 @@ mod tests {
     /// Helper to create a valid minimal program.
     fn valid_program() -> Program {
         Program {
+            consts: vec![],
             directives: vec![
                 Directive::Network {
                     value: "testnet".to_string(),
@@ -550,6 +551,7 @@ mod tests {
     fn valid_with_all_types() {
         let s = sp(1, 1, 0, 10);
         let program = Program {
+            consts: vec![],
             directives: vec![
                 Directive::Network {
                     value: "testnet".to_string(),
@@ -603,6 +605,7 @@ mod tests {
     #[test]
     fn missing_network() {
         let program = Program {
+            consts: vec![],
             directives: vec![Directive::Source {
                 value: ACCOUNT.to_string(),
                 span: sp(1, 1, 0, 10),
@@ -625,6 +628,7 @@ mod tests {
     #[test]
     fn missing_source() {
         let program = Program {
+            consts: vec![],
             directives: vec![Directive::Network {
                 value: "testnet".to_string(),
                 span: sp(1, 1, 0, 15),
@@ -682,6 +686,7 @@ mod tests {
     #[test]
     fn invalid_network() {
         let program = Program {
+            consts: vec![],
             directives: vec![
                 Directive::Network {
                     value: "devnet".to_string(),
@@ -707,6 +712,7 @@ mod tests {
     #[test]
     fn valid_network_passphrase() {
         let program = Program {
+            consts: vec![],
             directives: vec![
                 Directive::Network {
                     value: "Test SDF Network ; September 2015".to_string(),
@@ -737,6 +743,7 @@ mod tests {
     #[test]
     fn source_is_contract_address() {
         let program = Program {
+            consts: vec![],
             directives: vec![
                 Directive::Network {
                     value: "testnet".to_string(),
@@ -768,6 +775,7 @@ mod tests {
     #[test]
     fn source_bad_checksum() {
         let program = Program {
+            consts: vec![],
             directives: vec![
                 Directive::Network {
                     value: "testnet".to_string(),
@@ -799,6 +807,7 @@ mod tests {
     #[test]
     fn contract_is_account_address() {
         let program = Program {
+            consts: vec![],
             directives: vec![
                 Directive::Network {
                     value: "testnet".to_string(),
@@ -898,6 +907,7 @@ mod tests {
     #[test]
     fn no_calls_warning() {
         let program = Program {
+            consts: vec![],
             directives: vec![
                 Directive::Network {
                     value: "testnet".to_string(),

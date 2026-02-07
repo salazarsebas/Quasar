@@ -1,9 +1,9 @@
 use std::fs;
 use std::process;
 
-use callsoro_check::{Diagnostic, Severity, Validator};
+use callsoro_check::{Diagnostic, Resolver, Severity, Validator};
 use callsoro_compile::Compiler;
-use callsoro_syntax::ast::{Call, Directive, MapEntry, Program, Value};
+use callsoro_syntax::ast::{Call, ConstDecl, ConstValue, Directive, MapEntry, Program, Value};
 use callsoro_syntax::lexer::Lexer;
 use callsoro_syntax::parser::Parser;
 use clap::{Parser as ClapParser, Subcommand};
@@ -188,13 +188,23 @@ fn run_pipeline(source: &str, path: &str, c: &Colors) -> PipelineResult {
     };
 
     // Parse
-    let program = match Parser::parse(&tokens) {
+    let mut program = match Parser::parse(&tokens) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("{}", format_lex_error(&e.message, &e.span, source, path, c));
             return PipelineResult::Errors;
         }
     };
+
+    // Resolve consts
+    let resolve_diags = Resolver::resolve(&mut program);
+    let resolve_has_errors = resolve_diags.iter().any(|d| d.severity == Severity::Error);
+    for diag in &resolve_diags {
+        eprintln!("{}", format_diagnostic(diag, source, path, c));
+    }
+    if resolve_has_errors {
+        return PipelineResult::Errors;
+    }
 
     // Validate
     let diagnostics = Validator::validate(&program);
@@ -222,6 +232,14 @@ fn run_pipeline(source: &str, path: &str, c: &Colors) -> PipelineResult {
 fn format_program(program: &Program) -> String {
     let mut out = String::new();
 
+    // Const declarations
+    for c in &program.consts {
+        format_const(c, &mut out);
+    }
+    if !program.consts.is_empty() {
+        out.push('\n');
+    }
+
     // Directives
     for directive in &program.directives {
         match directive {
@@ -247,6 +265,15 @@ fn format_program(program: &Program) -> String {
     }
 
     out
+}
+
+fn format_const(decl: &ConstDecl, out: &mut String) {
+    out.push_str(&format!("const {} = ", decl.name));
+    match &decl.value {
+        ConstValue::String(s, _) => out.push_str(&format!("\"{}\"", s)),
+        ConstValue::Typed(v) => format_value(v, out, 0),
+    }
+    out.push('\n');
 }
 
 fn format_call(call: &Call, out: &mut String) {
@@ -305,6 +332,7 @@ fn format_value(value: &Value, out: &mut String, _depth: usize) {
             }
             out.push(')');
         }
+        Value::Ident(name, _) => out.push_str(name),
     }
 }
 
@@ -359,7 +387,7 @@ fn main() {
             };
 
             // Parse
-            let program = match Parser::parse(&tokens) {
+            let mut program = match Parser::parse(&tokens) {
                 Ok(p) => p,
                 Err(e) => {
                     eprintln!(
@@ -370,14 +398,19 @@ fn main() {
                 }
             };
 
-            // Validate
-            let diagnostics = Validator::validate(&program);
-            let has_errors = diagnostics.iter().any(|d| d.severity == Severity::Error);
+            // Resolve consts
+            let resolve_diags = Resolver::resolve(&mut program);
 
-            if diagnostics.is_empty() {
+            // Validate
+            let validate_diags = Validator::validate(&program);
+
+            let all_diags: Vec<_> = resolve_diags.iter().chain(validate_diags.iter()).collect();
+            let has_errors = all_diags.iter().any(|d| d.severity == Severity::Error);
+
+            if all_diags.is_empty() {
                 eprintln!("No errors found.");
             } else {
-                for diag in &diagnostics {
+                for diag in &all_diags {
                     eprintln!("{}", format_diagnostic(diag, &source, &file, c));
                 }
             }
@@ -713,6 +746,7 @@ mod tests {
             "minimal.soro",
             "all_types.soro",
             "multi_call.soro",
+            "with_consts.soro",
         ] {
             let output = Command::new(cargo_bin())
                 .args(["compile", fixtures_dir().join(name).to_str().unwrap()])
@@ -728,6 +762,61 @@ mod tests {
             let _: serde_json::Value = serde_json::from_slice(&output.stdout)
                 .unwrap_or_else(|e| panic!("{} produced invalid JSON: {}", name, e));
         }
+    }
+
+    // ---- Consts ----
+
+    #[test]
+    fn consts_produce_identical_output() {
+        build_binary();
+        // Compile transfer.soro (no consts)
+        let output_no_consts = Command::new(cargo_bin())
+            .args([
+                "compile",
+                fixtures_dir().join("transfer.soro").to_str().unwrap(),
+            ])
+            .arg("--no-color")
+            .output()
+            .expect("failed to run");
+        assert!(output_no_consts.status.success());
+
+        // Compile with_consts.soro (uses consts, should produce same JSON)
+        let output_with_consts = Command::new(cargo_bin())
+            .args([
+                "compile",
+                fixtures_dir().join("with_consts.soro").to_str().unwrap(),
+            ])
+            .arg("--no-color")
+            .output()
+            .expect("failed to run");
+        assert!(output_with_consts.status.success());
+
+        let json_a: serde_json::Value = serde_json::from_slice(&output_no_consts.stdout).unwrap();
+        let json_b: serde_json::Value = serde_json::from_slice(&output_with_consts.stdout).unwrap();
+        assert_eq!(
+            json_a, json_b,
+            "const expansion should produce identical JSON"
+        );
+    }
+
+    #[test]
+    fn undefined_const_exits_1() {
+        build_binary();
+        let tmp = write_temp_soro(
+            "network testnet\nsource GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF\ncall CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4 f(missing)",
+        );
+        let output = Command::new(cargo_bin())
+            .args(["compile", tmp.path().to_str().unwrap()])
+            .arg("--no-color")
+            .output()
+            .expect("failed to run");
+        assert!(!output.status.success());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("undefined name 'missing'"),
+            "stderr: {}",
+            stderr
+        );
     }
 
     // ---- Helper ----

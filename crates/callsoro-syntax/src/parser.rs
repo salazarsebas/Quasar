@@ -1,4 +1,4 @@
-use crate::ast::{Call, Directive, MapEntry, Program, Value};
+use crate::ast::{Call, ConstDecl, ConstValue, Directive, MapEntry, Program, Value};
 use crate::lexer::{Token, TokenKind};
 use crate::span::Span;
 use std::fmt;
@@ -154,10 +154,17 @@ impl<'a> Parser<'a> {
     // ── Program ─────────────────────────────────────────────────────
 
     fn parse_program(&mut self) -> Result<Program, ParseError> {
+        let mut consts = Vec::new();
         let mut directives = Vec::new();
         let mut calls = Vec::new();
 
         self.skip_newlines();
+
+        // Parse const declarations (must come first)
+        while self.peek() == &TokenKind::Const {
+            consts.push(self.parse_const()?);
+            self.skip_newlines();
+        }
 
         while self.peek() != &TokenKind::Eof {
             match self.peek() {
@@ -166,6 +173,13 @@ impl<'a> Parser<'a> {
                 TokenKind::Fee => directives.push(self.parse_fee()?),
                 TokenKind::Timeout => directives.push(self.parse_timeout()?),
                 TokenKind::Call => calls.push(self.parse_call()?),
+                TokenKind::Const => {
+                    return Err(ParseError {
+                        message: "'const' declarations must appear before directives and calls"
+                            .to_string(),
+                        span: self.current_span(),
+                    });
+                }
                 other => {
                     return Err(ParseError {
                         message: format!(
@@ -179,7 +193,11 @@ impl<'a> Parser<'a> {
             self.skip_newlines();
         }
 
-        Ok(Program { directives, calls })
+        Ok(Program {
+            consts,
+            directives,
+            calls,
+        })
     }
 
     // ── Directives ──────────────────────────────────────────────────
@@ -262,6 +280,31 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // ── Const ────────────────────────────────────────────────────────
+
+    fn parse_const(&mut self) -> Result<ConstDecl, ParseError> {
+        let start = self.current_span();
+        self.advance(); // consume 'const'
+        let (name, _) = self.expect_ident()?;
+        self.expect(&TokenKind::Eq)?;
+
+        // Value: either a bare string or a typed value
+        self.skip_newlines();
+        let value = if matches!(self.peek(), TokenKind::String(_)) {
+            let (s, s_span) = self.expect_string()?;
+            ConstValue::String(s, s_span)
+        } else {
+            ConstValue::Typed(self.parse_value()?)
+        };
+
+        let end = value.span();
+        Ok(ConstDecl {
+            name,
+            value,
+            span: Span::new(start.start, end.end, start.line, start.col),
+        })
+    }
+
     // ── Call ─────────────────────────────────────────────────────────
 
     fn parse_call(&mut self) -> Result<Call, ParseError> {
@@ -339,10 +382,7 @@ impl<'a> Parser<'a> {
                     "address" => self.parse_string_value(span, "address"),
                     "vec" => self.parse_vec(span),
                     "map" => self.parse_map(span),
-                    _ => Err(ParseError {
-                        message: format!("unknown type '{}'", name),
-                        span,
-                    }),
+                    _ => Ok(Value::Ident(name, span)),
                 }
             }
             other => Err(ParseError {
@@ -602,6 +642,47 @@ mod tests {
         }
     }
 
+    // ── Const declarations ──────────────────────────────────────────
+
+    #[test]
+    fn const_string() {
+        let prog = parse("const token = \"CABC\"\ncall CABC f()").unwrap();
+        assert_eq!(prog.consts.len(), 1);
+        assert_eq!(prog.consts[0].name, "token");
+        match &prog.consts[0].value {
+            ConstValue::String(s, _) => assert_eq!(s, "CABC"),
+            other => panic!("expected String, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn const_typed_value() {
+        let prog = parse("const amount = i128(\"10000000\")\ncall CABC f(amount)").unwrap();
+        assert_eq!(prog.consts.len(), 1);
+        assert_eq!(prog.consts[0].name, "amount");
+        match &prog.consts[0].value {
+            ConstValue::Typed(Value::I128(v, _)) => assert_eq!(v, "10000000"),
+            other => panic!("expected Typed(I128), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn const_multiple() {
+        let prog =
+            parse("const a = \"X\"\nconst b = u32(1)\nnetwork testnet\ncall CABC f()").unwrap();
+        assert_eq!(prog.consts.len(), 2);
+        assert_eq!(prog.consts[0].name, "a");
+        assert_eq!(prog.consts[1].name, "b");
+    }
+
+    #[test]
+    fn const_after_directive_error() {
+        let err = parse("network testnet\nconst x = \"y\"").unwrap_err();
+        assert!(err
+            .message
+            .contains("'const' declarations must appear before"));
+    }
+
     // ── Single call ─────────────────────────────────────────────────
 
     #[test]
@@ -854,9 +935,13 @@ mod tests {
     }
 
     #[test]
-    fn error_unknown_type() {
-        let err = parse("call C f(foo(1))").unwrap_err();
-        assert!(err.message.contains("unknown type 'foo'"));
+    fn bare_ident_in_arg_position() {
+        // Bare identifiers are now parsed as Value::Ident (const references)
+        let prog = parse("call C f(amount)").unwrap();
+        match &prog.calls[0].args[0] {
+            Value::Ident(name, _) => assert_eq!(name, "amount"),
+            other => panic!("expected Ident, got {:?}", other),
+        }
     }
 
     #[test]

@@ -3,6 +3,7 @@ source: crates/callsoro-syntax/src/parser.rs
 expression: prog
 ---
 Program {
+    consts: [],
     directives: [
         Network {
             value: "testnet",

@@ -3,8 +3,35 @@ use crate::span::Span;
 /// A complete `.soro` program.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
+    pub consts: Vec<ConstDecl>,
     pub directives: Vec<Directive>,
     pub calls: Vec<Call>,
+}
+
+/// An immutable constant declaration.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConstDecl {
+    pub name: String,
+    pub value: ConstValue,
+    pub span: Span,
+}
+
+/// The right-hand side of a `const` declaration.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConstValue {
+    /// A bare string literal: `const token = "CB6..."`
+    String(String, Span),
+    /// A typed value: `const sender = address("G...")`
+    Typed(Value),
+}
+
+impl ConstValue {
+    pub fn span(&self) -> Span {
+        match self {
+            ConstValue::String(_, s) => *s,
+            ConstValue::Typed(v) => v.span(),
+        }
+    }
 }
 
 /// A top-level directive that configures the transaction context.
@@ -81,6 +108,8 @@ pub enum Value {
     Address(String, Span),
     Vec(Vec<Value>, Span),
     Map(Vec<MapEntry>, Span),
+    /// An unresolved reference to a `const` name, resolved before compilation.
+    Ident(String, Span),
 }
 
 impl Value {
@@ -100,7 +129,8 @@ impl Value {
             | Value::Bytes(_, s)
             | Value::Address(_, s)
             | Value::Vec(_, s)
-            | Value::Map(_, s) => *s,
+            | Value::Map(_, s)
+            | Value::Ident(_, s) => *s,
         }
     }
 }

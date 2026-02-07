@@ -118,6 +118,9 @@ impl Compiler {
                     })
                     .collect(),
             ),
+            Value::Ident(name, _) => {
+                unreachable!("unresolved const reference '{}' reached the compiler", name)
+            }
         }
     }
 }
@@ -139,6 +142,7 @@ mod tests {
 
     fn full_program() -> Program {
         Program {
+            consts: vec![],
             directives: vec![
                 Directive::Network {
                     value: "testnet".to_string(),
@@ -174,6 +178,7 @@ mod tests {
     #[test]
     fn compile_minimal() {
         let program = Program {
+            consts: vec![],
             directives: vec![
                 Directive::Network {
                     value: "testnet".to_string(),
@@ -270,6 +275,7 @@ mod tests {
     #[test]
     fn defaults_without_fee_or_timeout() {
         let program = Program {
+            consts: vec![],
             directives: vec![
                 Directive::Network {
                     value: "testnet".to_string(),
@@ -292,6 +298,7 @@ mod tests {
     #[test]
     fn compile_multiple_calls() {
         let program = Program {
+            consts: vec![],
             directives: vec![
                 Directive::Network {
                     value: "testnet".to_string(),
@@ -329,6 +336,7 @@ mod tests {
     fn compile_all_value_types() {
         let s = sp();
         let program = Program {
+            consts: vec![],
             directives: vec![
                 Directive::Network {
                     value: "testnet".to_string(),
@@ -384,6 +392,7 @@ mod tests {
     fn compile_vec() {
         let s = sp();
         let program = Program {
+            consts: vec![],
             directives: vec![
                 Directive::Network {
                     value: "testnet".to_string(),
@@ -415,6 +424,7 @@ mod tests {
     fn compile_nested_vec() {
         let s = sp();
         let program = Program {
+            consts: vec![],
             directives: vec![
                 Directive::Network {
                     value: "testnet".to_string(),
@@ -446,6 +456,7 @@ mod tests {
     fn compile_map() {
         let s = sp();
         let program = Program {
+            consts: vec![],
             directives: vec![
                 Directive::Network {
                     value: "testnet".to_string(),
@@ -501,6 +512,7 @@ mod tests {
     fn json_tagged_format() {
         let s = sp();
         let program = Program {
+            consts: vec![],
             directives: vec![
                 Directive::Network {
                     value: "testnet".to_string(),
