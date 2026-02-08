@@ -53,8 +53,10 @@ impl Resolver {
 
         // Resolve contract references and arguments in calls
         for call in &mut program.calls {
-            // Check contract position
-            if let Some(decl) = consts.get(call.contract.as_str()) {
+            // Interface calls use "_" placeholder — skip contract resolution
+            if call.interface.is_some() {
+                // Only resolve arguments, not the contract placeholder
+            } else if let Some(decl) = consts.get(call.contract.as_str()) {
                 match &decl.value {
                     ConstValue::String(s, _) => {
                         call.contract = s.clone();
@@ -177,6 +179,7 @@ mod tests {
 
     fn base_program() -> Program {
         Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -192,6 +195,7 @@ mod tests {
                 contract: CONTRACT.to_string(),
                 method: "transfer".to_string(),
                 args: vec![],
+                interface: None,
                 span: sp(),
             }],
         }
@@ -423,6 +427,19 @@ mod tests {
             },
             other => panic!("expected Vec, got: {:?}", other),
         }
+    }
+
+    #[test]
+    fn interface_call_skips_contract_resolution() {
+        let mut program = base_program();
+        // An interface call has contract="_" and interface=Some(...)
+        program.calls[0].contract = "_".to_string();
+        program.calls[0].interface = Some("Token".to_string());
+
+        let diags = Resolver::resolve(&mut program);
+        assert!(diags.is_empty(), "got: {:?}", diags);
+        // The "_" placeholder should remain untouched
+        assert_eq!(program.calls[0].contract, "_");
     }
 
     #[test]

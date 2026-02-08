@@ -269,25 +269,31 @@ impl Validator {
     }
 
     fn check_call(call: &Call, diags: &mut Vec<Diagnostic>) {
-        // Contract address must be C...
-        match validate_strkey(&call.contract) {
-            Ok(StrKeyKind::Contract) => {} // correct
-            Ok(StrKeyKind::AccountId) => {
-                diags.push(
-                    Diagnostic::error(
-                        "expected contract address (C...), got account address (G...)",
-                        call.span,
-                    )
-                    .with_help("contract addresses start with C, account addresses start with G"),
-                );
-            }
-            Err(e) => {
-                diags.push(
-                    Diagnostic::error(format!("invalid contract address: {}", e), call.span)
+        // Interface calls use "_" placeholder — skip contract address validation
+        // (the TypeChecker and compiler handle interface resolution)
+        if call.interface.is_none() {
+            // Contract address must be C...
+            match validate_strkey(&call.contract) {
+                Ok(StrKeyKind::Contract) => {} // correct
+                Ok(StrKeyKind::AccountId) => {
+                    diags.push(
+                        Diagnostic::error(
+                            "expected contract address (C...), got account address (G...)",
+                            call.span,
+                        )
                         .with_help(
-                            "contract addresses start with C and are 56 characters with a CRC16 checksum",
+                            "contract addresses start with C, account addresses start with G",
                         ),
-                );
+                    );
+                }
+                Err(e) => {
+                    diags.push(
+                        Diagnostic::error(format!("invalid contract address: {}", e), call.span)
+                            .with_help(
+                                "contract addresses start with C and are 56 characters with a CRC16 checksum",
+                            ),
+                    );
+                }
             }
         }
 
@@ -514,6 +520,7 @@ mod tests {
     /// Helper to create a valid minimal program.
     fn valid_program() -> Program {
         Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -529,6 +536,7 @@ mod tests {
                 contract: CONTRACT.to_string(),
                 method: "transfer".to_string(),
                 args: vec![],
+                interface: None,
                 span: sp(3, 1, 81, 150),
             }],
         }
@@ -551,6 +559,7 @@ mod tests {
     fn valid_with_all_types() {
         let s = sp(1, 1, 0, 10);
         let program = Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -589,6 +598,7 @@ mod tests {
                         s,
                     ),
                 ],
+                interface: None,
                 span: s,
             }],
         };
@@ -605,6 +615,7 @@ mod tests {
     #[test]
     fn missing_network() {
         let program = Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![Directive::Source {
                 value: ACCOUNT.to_string(),
@@ -614,6 +625,7 @@ mod tests {
                 contract: CONTRACT.to_string(),
                 method: "test".to_string(),
                 args: vec![],
+                interface: None,
                 span: sp(2, 1, 11, 80),
             }],
         };
@@ -628,6 +640,7 @@ mod tests {
     #[test]
     fn missing_source() {
         let program = Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![Directive::Network {
                 value: "testnet".to_string(),
@@ -637,6 +650,7 @@ mod tests {
                 contract: CONTRACT.to_string(),
                 method: "test".to_string(),
                 args: vec![],
+                interface: None,
                 span: sp(2, 1, 16, 80),
             }],
         };
@@ -686,6 +700,7 @@ mod tests {
     #[test]
     fn invalid_network() {
         let program = Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -701,6 +716,7 @@ mod tests {
                 contract: CONTRACT.to_string(),
                 method: "test".to_string(),
                 args: vec![],
+                interface: None,
                 span: sp(3, 1, 81, 150),
             }],
         };
@@ -712,6 +728,7 @@ mod tests {
     #[test]
     fn valid_network_passphrase() {
         let program = Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -727,6 +744,7 @@ mod tests {
                 contract: CONTRACT.to_string(),
                 method: "test".to_string(),
                 args: vec![],
+                interface: None,
                 span: sp(3, 1, 106, 170),
             }],
         };
@@ -743,6 +761,7 @@ mod tests {
     #[test]
     fn source_is_contract_address() {
         let program = Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -758,6 +777,7 @@ mod tests {
                 contract: CONTRACT.to_string(),
                 method: "test".to_string(),
                 args: vec![],
+                interface: None,
                 span: sp(3, 1, 81, 150),
             }],
         };
@@ -775,6 +795,7 @@ mod tests {
     #[test]
     fn source_bad_checksum() {
         let program = Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -790,6 +811,7 @@ mod tests {
                 contract: CONTRACT.to_string(),
                 method: "test".to_string(),
                 args: vec![],
+                interface: None,
                 span: sp(3, 1, 81, 150),
             }],
         };
@@ -807,6 +829,7 @@ mod tests {
     #[test]
     fn contract_is_account_address() {
         let program = Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -822,6 +845,7 @@ mod tests {
                 contract: ACCOUNT.to_string(),
                 method: "transfer".to_string(),
                 args: vec![],
+                interface: None,
                 span: sp(3, 1, 81, 150),
             }],
         };
@@ -907,6 +931,7 @@ mod tests {
     #[test]
     fn no_calls_warning() {
         let program = Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -1192,6 +1217,44 @@ mod tests {
         let diags = Validator::validate(&program);
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("invalid address"));
+    }
+
+    // -- Interface call validation -------------------------------------------
+
+    #[test]
+    fn interface_call_skips_contract_validation() {
+        let s = sp(1, 1, 0, 10);
+        let program = Program {
+            uses: vec![],
+            consts: vec![],
+            directives: vec![
+                Directive::Network {
+                    value: "testnet".to_string(),
+                    span: s,
+                },
+                Directive::Source {
+                    value: ACCOUNT.to_string(),
+                    span: s,
+                },
+            ],
+            calls: vec![Call {
+                contract: "_".to_string(), // placeholder
+                method: "transfer".to_string(),
+                args: vec![
+                    Value::Address(ACCOUNT.to_string(), s),
+                    Value::Address(ACCOUNT.to_string(), s),
+                    Value::I128("1000".to_string(), s),
+                ],
+                interface: Some("Token".to_string()),
+                span: s,
+            }],
+        };
+        let diags = Validator::validate(&program);
+        assert!(
+            diags.is_empty(),
+            "interface call should not trigger contract address validation: {:?}",
+            diags
+        );
     }
 
     // -- Nested validation ---------------------------------------------------

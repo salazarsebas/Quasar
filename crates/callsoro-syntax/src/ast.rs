@@ -1,8 +1,19 @@
 use crate::span::Span;
 
+/// A `use` declaration that imports a contract ABI.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UseDecl {
+    /// Path to the `.soroabi` file.
+    pub path: String,
+    /// Alias used in `call Alias.method(...)`.
+    pub alias: String,
+    pub span: Span,
+}
+
 /// A complete `.soro` program.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
+    pub uses: Vec<UseDecl>,
     pub consts: Vec<ConstDecl>,
     pub directives: Vec<Directive>,
     pub calls: Vec<Call>,
@@ -83,6 +94,8 @@ pub struct Call {
     pub contract: String,
     pub method: String,
     pub args: Vec<Value>,
+    /// If set, this call uses an imported interface (e.g. `call Token.transfer(...)`).
+    pub interface: Option<String>,
     pub span: Span,
 }
 

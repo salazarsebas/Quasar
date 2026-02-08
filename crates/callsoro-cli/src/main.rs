@@ -1,7 +1,9 @@
+use std::collections::HashMap;
 use std::fs;
+use std::path::Path;
 use std::process;
 
-use callsoro_check::{Diagnostic, Resolver, Severity, Validator};
+use callsoro_check::{Diagnostic, Resolver, Severity, TypeCheckError, TypeChecker, Validator};
 use callsoro_compile::{Compiler, JsonIR, XdrCompiler};
 use callsoro_exec::{AbiImporter, Simulator};
 use callsoro_syntax::ast::{Call, ConstDecl, ConstValue, Directive, MapEntry, Program, Value};
@@ -202,6 +204,35 @@ fn format_lex_error(
     )
 }
 
+fn format_type_error(err: &TypeCheckError, source: &str, path: &str, c: &Colors) -> String {
+    let line_content = source.lines().nth(err.span.line - 1).unwrap_or("");
+    let col = err.span.col;
+    let underline_len = if err.span.end > err.span.start {
+        err.span.end - err.span.start
+    } else {
+        1
+    };
+
+    format!(
+        "{}{}type error{}: {}\n {}-->{} {}:{}:{}\n  |\n{} | {}\n  | {}{}{}{}\n",
+        c.red,
+        c.bold,
+        c.reset,
+        err.message,
+        c.cyan,
+        c.reset,
+        path,
+        err.span.line,
+        col,
+        err.span.line,
+        line_content,
+        " ".repeat(col - 1),
+        c.red,
+        "^".repeat(underline_len),
+        c.reset,
+    )
+}
+
 // ---------------------------------------------------------------------------
 // Pipeline helpers
 // ---------------------------------------------------------------------------
@@ -212,6 +243,8 @@ enum PipelineResult {
 }
 
 fn run_pipeline(source: &str, path: &str, c: &Colors) -> PipelineResult {
+    let base_dir = Path::new(path).parent().unwrap_or_else(|| Path::new("."));
+
     // Lex
     let tokens = match Lexer::tokenize(source) {
         Ok(t) => t,
@@ -252,8 +285,37 @@ fn run_pipeline(source: &str, path: &str, c: &Colors) -> PipelineResult {
         return PipelineResult::Errors;
     }
 
+    // Type-check interface calls
+    let mut checker = TypeChecker::new();
+    for use_decl in &program.uses {
+        if let Err(e) = checker.load_abi(&use_decl.alias, &use_decl.path, base_dir) {
+            eprintln!("{}", format_type_error(&e, source, path, c));
+            return PipelineResult::Errors;
+        }
+    }
+
+    let type_errors = checker.check_program(&program);
+    if !type_errors.is_empty() {
+        for err in &type_errors {
+            eprintln!("{}", format_type_error(err, source, path, c));
+        }
+        return PipelineResult::Errors;
+    }
+
+    // Build ABI contract ID map for compiler
+    let abi_map: HashMap<String, String> = checker
+        .abis()
+        .iter()
+        .map(|(alias, abi)| (alias.clone(), abi.contract_id.clone()))
+        .collect();
+
     // Compile
-    let ir = Compiler::compile(&program);
+    let abis = if abi_map.is_empty() {
+        None
+    } else {
+        Some(&abi_map)
+    };
+    let ir = Compiler::compile_with_abis(&program, abis);
     PipelineResult::Compiled(ir)
 }
 
@@ -263,6 +325,14 @@ fn run_pipeline(source: &str, path: &str, c: &Colors) -> PipelineResult {
 
 fn format_program(program: &Program) -> String {
     let mut out = String::new();
+
+    // Use declarations
+    for u in &program.uses {
+        out.push_str(&format!("use \"{}\" as {}\n", u.path, u.alias));
+    }
+    if !program.uses.is_empty() {
+        out.push('\n');
+    }
 
     // Const declarations
     for c in &program.consts {
@@ -309,7 +379,11 @@ fn format_const(decl: &ConstDecl, out: &mut String) {
 }
 
 fn format_call(call: &Call, out: &mut String) {
-    out.push_str(&format!("call {} {}(", call.contract, call.method));
+    if let Some(alias) = &call.interface {
+        out.push_str(&format!("call {}.{}(", alias, call.method));
+    } else {
+        out.push_str(&format!("call {} {}(", call.contract, call.method));
+    }
     if call.args.is_empty() {
         out.push_str(")\n");
     } else if call.args.len() == 1 {
@@ -506,6 +580,7 @@ fn main() {
 
         Commands::Check { file } => {
             let source = read_file(&file, c);
+            let base_dir = Path::new(&file).parent().unwrap_or_else(|| Path::new("."));
 
             // Lex
             let tokens = match Lexer::tokenize(&source) {
@@ -540,9 +615,7 @@ fn main() {
             let all_diags: Vec<_> = resolve_diags.iter().chain(validate_diags.iter()).collect();
             let has_errors = all_diags.iter().any(|d| d.severity == Severity::Error);
 
-            if all_diags.is_empty() {
-                eprintln!("No errors found.");
-            } else {
+            if !all_diags.is_empty() {
                 for diag in &all_diags {
                     eprintln!("{}", format_diagnostic(diag, &source, &file, c));
                 }
@@ -550,6 +623,27 @@ fn main() {
 
             if has_errors {
                 process::exit(1);
+            }
+
+            // Type-check interface calls
+            let mut checker = TypeChecker::new();
+            for use_decl in &program.uses {
+                if let Err(e) = checker.load_abi(&use_decl.alias, &use_decl.path, base_dir) {
+                    eprintln!("{}", format_type_error(&e, &source, &file, c));
+                    process::exit(1);
+                }
+            }
+
+            let type_errors = checker.check_program(&program);
+            if !type_errors.is_empty() {
+                for err in &type_errors {
+                    eprintln!("{}", format_type_error(err, &source, &file, c));
+                }
+                process::exit(1);
+            }
+
+            if all_diags.is_empty() && type_errors.is_empty() {
+                eprintln!("No errors found.");
             }
         }
 
@@ -918,6 +1012,7 @@ mod tests {
             "all_types.soro",
             "multi_call.soro",
             "with_consts.soro",
+            "interface_call.soro",
         ] {
             let output = Command::new(cargo_bin())
                 .args(["compile", fixtures_dir().join(name).to_str().unwrap()])
@@ -1223,6 +1318,75 @@ mod tests {
         );
     }
 
+    // ---- Interface calls ----
+
+    #[test]
+    fn compile_interface_call_succeeds() {
+        build_binary();
+        let output = Command::new(cargo_bin())
+            .args([
+                "compile",
+                fixtures_dir().join("interface_call.soro").to_str().unwrap(),
+            ])
+            .arg("--no-color")
+            .output()
+            .expect("failed to run");
+        assert!(
+            output.status.success(),
+            "exit code was not 0: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let json: serde_json::Value =
+            serde_json::from_slice(&output.stdout).expect("stdout is not valid JSON");
+        assert_eq!(json["version"], 1);
+        // The "_" placeholder should be resolved to the contract ID from the ABI
+        assert_eq!(
+            json["calls"][0]["contract"],
+            "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4"
+        );
+        assert_eq!(json["calls"][0]["method"], "transfer");
+    }
+
+    #[test]
+    fn compile_unknown_method_fails() {
+        build_binary();
+        let tmp = write_temp_soro_with_abi(
+            "use \"token.soroabi\" as Token\nnetwork testnet\nsource GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF\ncall Token.trasfer()",
+        );
+        let output = Command::new(cargo_bin())
+            .args(["compile", tmp.path().to_str().unwrap()])
+            .arg("--no-color")
+            .output()
+            .expect("failed to run");
+        assert!(!output.status.success(), "should exit 1");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("not found") && stderr.contains("did you mean 'transfer'"),
+            "stderr: {}",
+            stderr
+        );
+    }
+
+    #[test]
+    fn compile_missing_abi_file_fails() {
+        build_binary();
+        let tmp = write_temp_soro(
+            "use \"nonexistent.soroabi\" as Token\nnetwork testnet\nsource GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF\ncall Token.transfer()",
+        );
+        let output = Command::new(cargo_bin())
+            .args(["compile", tmp.path().to_str().unwrap()])
+            .arg("--no-color")
+            .output()
+            .expect("failed to run");
+        assert!(!output.status.success(), "should exit 1");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("cannot read ABI file"),
+            "stderr: {}",
+            stderr
+        );
+    }
+
     // ---- Helper ----
 
     fn write_temp_soro(content: &str) -> tempfile::NamedTempFile {
@@ -1233,6 +1397,15 @@ mod tests {
             .expect("failed to create temp");
         tmp.write_all(content.as_bytes()).unwrap();
         tmp.flush().unwrap();
+        tmp
+    }
+
+    /// Write a temp .soro file and copy token.soroabi next to it.
+    fn write_temp_soro_with_abi(content: &str) -> tempfile::NamedTempFile {
+        let tmp = write_temp_soro(content);
+        let abi_src = fixtures_dir().join("token.soroabi");
+        let abi_dst = tmp.path().parent().unwrap().join("token.soroabi");
+        std::fs::copy(&abi_src, &abi_dst).expect("failed to copy token.soroabi");
         tmp
     }
 }

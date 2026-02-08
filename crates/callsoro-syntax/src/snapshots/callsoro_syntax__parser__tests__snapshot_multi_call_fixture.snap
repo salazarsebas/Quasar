@@ -3,6 +3,7 @@ source: crates/callsoro-syntax/src/parser.rs
 expression: prog
 ---
 Program {
+    uses: [],
     consts: [],
     directives: [
         Network {
@@ -75,6 +76,7 @@ Program {
                     },
                 ),
             ],
+            interface: None,
             span: Span {
                 start: 145,
                 end: 377,
@@ -114,6 +116,7 @@ Program {
                     },
                 ),
             ],
+            interface: None,
             span: Span {
                 start: 379,
                 end: 612,

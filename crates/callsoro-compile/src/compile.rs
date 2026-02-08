@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use callsoro_syntax::ast::{Directive, Program, Value};
 
 use crate::ir::{IrCall, IrMapEntry, IrSigning, IrValue, JsonIR};
@@ -9,14 +11,27 @@ const DEFAULT_TIMEOUT: u64 = 30;
 pub struct Compiler;
 
 impl Compiler {
+    /// Compile a program without interface resolution (backwards-compatible).
     pub fn compile(program: &Program) -> JsonIR {
+        Self::compile_with_abis(program, None)
+    }
+
+    /// Compile a program, resolving interface call contract IDs from the ABI map.
+    ///
+    /// The `abis` map keys are interface aliases (e.g. "Token") and values are
+    /// contract IDs (e.g. "CAAA...").
+    pub fn compile_with_abis(program: &Program, abis: Option<&HashMap<String, String>>) -> JsonIR {
         let network = Self::extract_network(program);
         let network_passphrase = Self::resolve_passphrase(&network);
         let source = Self::extract_source(program);
         let fee = Self::extract_fee(program);
         let timeout = Self::extract_timeout(program);
 
-        let calls = program.calls.iter().map(Self::compile_call).collect();
+        let calls = program
+            .calls
+            .iter()
+            .map(|c| Self::compile_call(c, abis))
+            .collect();
 
         JsonIR {
             version: 1,
@@ -85,9 +100,21 @@ impl Compiler {
         }
     }
 
-    fn compile_call(call: &callsoro_syntax::ast::Call) -> IrCall {
+    fn compile_call(
+        call: &callsoro_syntax::ast::Call,
+        abis: Option<&HashMap<String, String>>,
+    ) -> IrCall {
+        // Resolve interface placeholder "_" to real contract ID from ABI map
+        let contract = if let Some(alias) = &call.interface {
+            abis.and_then(|m| m.get(alias))
+                .cloned()
+                .unwrap_or_else(|| call.contract.clone())
+        } else {
+            call.contract.clone()
+        };
+
         IrCall {
-            contract: call.contract.clone(),
+            contract,
             method: call.method.clone(),
             args: call.args.iter().map(Self::compile_value).collect(),
         }
@@ -142,6 +169,7 @@ mod tests {
 
     fn full_program() -> Program {
         Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -168,6 +196,7 @@ mod tests {
                     Value::Address(ACCOUNT.to_string(), sp()),
                     Value::I128("10000000".to_string(), sp()),
                 ],
+                interface: None,
                 span: sp(),
             }],
         }
@@ -178,6 +207,7 @@ mod tests {
     #[test]
     fn compile_minimal() {
         let program = Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -193,6 +223,7 @@ mod tests {
                 contract: CONTRACT.to_string(),
                 method: "transfer".to_string(),
                 args: vec![],
+                interface: None,
                 span: sp(),
             }],
         };
@@ -275,6 +306,7 @@ mod tests {
     #[test]
     fn defaults_without_fee_or_timeout() {
         let program = Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -298,6 +330,7 @@ mod tests {
     #[test]
     fn compile_multiple_calls() {
         let program = Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -314,12 +347,14 @@ mod tests {
                     contract: CONTRACT.to_string(),
                     method: "approve".to_string(),
                     args: vec![Value::U32(1, sp())],
+                    interface: None,
                     span: sp(),
                 },
                 Call {
                     contract: CONTRACT.to_string(),
                     method: "transfer".to_string(),
                     args: vec![Value::U32(2, sp())],
+                    interface: None,
                     span: sp(),
                 },
             ],
@@ -336,6 +371,7 @@ mod tests {
     fn compile_all_value_types() {
         let s = sp();
         let program = Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -366,6 +402,7 @@ mod tests {
                     Value::Bytes("0xdeadbeef".to_string(), s),
                     Value::Address(ACCOUNT.to_string(), s),
                 ],
+                interface: None,
                 span: s,
             }],
         };
@@ -392,6 +429,7 @@ mod tests {
     fn compile_vec() {
         let s = sp();
         let program = Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -410,6 +448,7 @@ mod tests {
                     vec![Value::U32(1, s), Value::U32(2, s), Value::U32(3, s)],
                     s,
                 )],
+                interface: None,
                 span: s,
             }],
         };
@@ -424,6 +463,7 @@ mod tests {
     fn compile_nested_vec() {
         let s = sp();
         let program = Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -442,6 +482,7 @@ mod tests {
                     vec![Value::U32(1, s), Value::Vec(vec![Value::U32(2, s)], s)],
                     s,
                 )],
+                interface: None,
                 span: s,
             }],
         };
@@ -456,6 +497,7 @@ mod tests {
     fn compile_map() {
         let s = sp();
         let program = Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -477,6 +519,7 @@ mod tests {
                     }],
                     s,
                 )],
+                interface: None,
                 span: s,
             }],
         };
@@ -488,6 +531,102 @@ mod tests {
                 value: IrValue::I128("1".to_string()),
             }])
         );
+    }
+
+    // -- Interface call compilation ------------------------------------------
+
+    #[test]
+    fn compile_interface_call_resolves_contract() {
+        let s = sp();
+        let program = Program {
+            uses: vec![],
+            consts: vec![],
+            directives: vec![
+                Directive::Network {
+                    value: "testnet".to_string(),
+                    span: s,
+                },
+                Directive::Source {
+                    value: ACCOUNT.to_string(),
+                    span: s,
+                },
+            ],
+            calls: vec![Call {
+                contract: "_".to_string(),
+                method: "transfer".to_string(),
+                args: vec![Value::I128("1000".to_string(), s)],
+                interface: Some("Token".to_string()),
+                span: s,
+            }],
+        };
+
+        let mut abis = HashMap::new();
+        abis.insert("Token".to_string(), CONTRACT.to_string());
+
+        let ir = Compiler::compile_with_abis(&program, Some(&abis));
+        assert_eq!(ir.calls[0].contract, CONTRACT);
+        assert_eq!(ir.calls[0].method, "transfer");
+    }
+
+    #[test]
+    fn compile_interface_call_without_abis_keeps_placeholder() {
+        let s = sp();
+        let program = Program {
+            uses: vec![],
+            consts: vec![],
+            directives: vec![
+                Directive::Network {
+                    value: "testnet".to_string(),
+                    span: s,
+                },
+                Directive::Source {
+                    value: ACCOUNT.to_string(),
+                    span: s,
+                },
+            ],
+            calls: vec![Call {
+                contract: "_".to_string(),
+                method: "transfer".to_string(),
+                args: vec![],
+                interface: Some("Token".to_string()),
+                span: s,
+            }],
+        };
+
+        let ir = Compiler::compile(&program);
+        assert_eq!(ir.calls[0].contract, "_");
+    }
+
+    #[test]
+    fn compile_traditional_call_ignores_abis() {
+        let s = sp();
+        let program = Program {
+            uses: vec![],
+            consts: vec![],
+            directives: vec![
+                Directive::Network {
+                    value: "testnet".to_string(),
+                    span: s,
+                },
+                Directive::Source {
+                    value: ACCOUNT.to_string(),
+                    span: s,
+                },
+            ],
+            calls: vec![Call {
+                contract: CONTRACT.to_string(),
+                method: "transfer".to_string(),
+                args: vec![],
+                interface: None,
+                span: s,
+            }],
+        };
+
+        let mut abis = HashMap::new();
+        abis.insert("Token".to_string(), "SOME_OTHER_CONTRACT".to_string());
+
+        let ir = Compiler::compile_with_abis(&program, Some(&abis));
+        assert_eq!(ir.calls[0].contract, CONTRACT);
     }
 
     // -- JSON serialization --------------------------------------------------
@@ -512,6 +651,7 @@ mod tests {
     fn json_tagged_format() {
         let s = sp();
         let program = Program {
+            uses: vec![],
             consts: vec![],
             directives: vec![
                 Directive::Network {
@@ -531,6 +671,7 @@ mod tests {
                     Value::I128("42".to_string(), s),
                     Value::Address(ACCOUNT.to_string(), s),
                 ],
+                interface: None,
                 span: s,
             }],
         };

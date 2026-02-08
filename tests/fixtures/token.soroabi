@@ -1,0 +1,25 @@
+{
+  "contract_id": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+  "name": "Token",
+  "functions": [
+    {
+      "name": "transfer",
+      "doc": null,
+      "inputs": [
+        { "name": "from", "type_ref": "address" },
+        { "name": "to", "type_ref": "address" },
+        { "name": "amount", "type_ref": "i128" }
+      ],
+      "outputs": [{ "type_ref": "void" }]
+    },
+    {
+      "name": "balance",
+      "doc": null,
+      "inputs": [
+        { "name": "id", "type_ref": "address" }
+      ],
+      "outputs": [{ "type_ref": "i128" }]
+    }
+  ],
+  "types": []
+}

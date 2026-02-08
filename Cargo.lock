@@ -104,6 +104,7 @@ dependencies = [
  "callsoro-compile",
  "callsoro-syntax",
  "insta",
+ "serde",
  "serde_json",
 ]
 

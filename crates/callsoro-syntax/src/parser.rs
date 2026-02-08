@@ -1,4 +1,4 @@
-use crate::ast::{Call, ConstDecl, ConstValue, Directive, MapEntry, Program, Value};
+use crate::ast::{Call, ConstDecl, ConstValue, Directive, MapEntry, Program, UseDecl, Value};
 use crate::lexer::{Token, TokenKind};
 use crate::span::Span;
 use std::fmt;
@@ -154,13 +154,20 @@ impl<'a> Parser<'a> {
     // ── Program ─────────────────────────────────────────────────────
 
     fn parse_program(&mut self) -> Result<Program, ParseError> {
+        let mut uses = Vec::new();
         let mut consts = Vec::new();
         let mut directives = Vec::new();
         let mut calls = Vec::new();
 
         self.skip_newlines();
 
-        // Parse const declarations (must come first)
+        // Parse use declarations (must come first)
+        while self.peek() == &TokenKind::Use {
+            uses.push(self.parse_use()?);
+            self.skip_newlines();
+        }
+
+        // Parse const declarations (must come before directives and calls)
         while self.peek() == &TokenKind::Const {
             consts.push(self.parse_const()?);
             self.skip_newlines();
@@ -173,6 +180,14 @@ impl<'a> Parser<'a> {
                 TokenKind::Fee => directives.push(self.parse_fee()?),
                 TokenKind::Timeout => directives.push(self.parse_timeout()?),
                 TokenKind::Call => calls.push(self.parse_call()?),
+                TokenKind::Use => {
+                    return Err(ParseError {
+                        message:
+                            "'use' declarations must appear before consts, directives, and calls"
+                                .to_string(),
+                        span: self.current_span(),
+                    });
+                }
                 TokenKind::Const => {
                     return Err(ParseError {
                         message: "'const' declarations must appear before directives and calls"
@@ -194,6 +209,7 @@ impl<'a> Parser<'a> {
         }
 
         Ok(Program {
+            uses,
             consts,
             directives,
             calls,
@@ -280,6 +296,32 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // ── Use ─────────────────────────────────────────────────────────
+
+    fn parse_use(&mut self) -> Result<UseDecl, ParseError> {
+        let start = self.current_span();
+        self.advance(); // consume 'use'
+
+        let (path, _) = self.expect_string()?;
+
+        // Expect contextual keyword 'as'
+        let (as_kw, as_span) = self.expect_ident()?;
+        if as_kw != "as" {
+            return Err(ParseError {
+                message: format!("expected 'as' after use path but found '{}'", as_kw),
+                span: as_span,
+            });
+        }
+
+        let (alias, alias_span) = self.expect_ident()?;
+
+        Ok(UseDecl {
+            path,
+            alias,
+            span: Span::new(start.start, alias_span.end, start.line, start.col),
+        })
+    }
+
     // ── Const ────────────────────────────────────────────────────────
 
     fn parse_const(&mut self) -> Result<ConstDecl, ParseError> {
@@ -311,8 +353,17 @@ impl<'a> Parser<'a> {
         let start = self.current_span();
         self.advance(); // consume 'call'
 
-        let (contract, _) = self.expect_ident()?;
-        let (method, _) = self.expect_ident()?;
+        let (first_ident, _) = self.expect_ident()?;
+
+        // Detect dot syntax: `call Alias.method(...)` vs `call CONTRACT method(...)`
+        let (contract, method, interface) = if self.peek() == &TokenKind::Dot {
+            self.advance(); // consume '.'
+            let (method, _) = self.expect_ident()?;
+            ("_".to_string(), method, Some(first_ident))
+        } else {
+            let (method, _) = self.expect_ident()?;
+            (first_ident, method, None)
+        };
 
         self.expect(&TokenKind::LParen)?;
         let args = self.parse_arg_list()?;
@@ -322,6 +373,7 @@ impl<'a> Parser<'a> {
             contract,
             method,
             args,
+            interface,
             span: Span::new(start.start, end_token.span.end, start.line, start.col),
         })
     }
@@ -1024,5 +1076,88 @@ mod tests {
         let source = include_str!("../../../tests/fixtures/minimal.soro");
         let prog = parse(source).unwrap();
         insta::assert_debug_snapshot!(prog);
+    }
+
+    // ── Use declarations ────────────────────────────────────────────
+
+    #[test]
+    fn parse_use_declaration() {
+        let prog = parse("use \"token.soroabi\" as Token\ncall C f()").unwrap();
+        assert_eq!(prog.uses.len(), 1);
+        assert_eq!(prog.uses[0].path, "token.soroabi");
+        assert_eq!(prog.uses[0].alias, "Token");
+    }
+
+    #[test]
+    fn parse_use_missing_as() {
+        let err = parse("use \"token.soroabi\" Token").unwrap_err();
+        assert!(err.message.contains("expected 'as'"));
+    }
+
+    #[test]
+    fn parse_use_missing_path() {
+        let err = parse("use as Token").unwrap_err();
+        assert!(err.message.contains("expected string"));
+    }
+
+    #[test]
+    fn parse_multiple_uses() {
+        let src = "use \"token.soroabi\" as Token\nuse \"pool.soroabi\" as Pool\ncall C f()";
+        let prog = parse(src).unwrap();
+        assert_eq!(prog.uses.len(), 2);
+        assert_eq!(prog.uses[0].alias, "Token");
+        assert_eq!(prog.uses[1].alias, "Pool");
+    }
+
+    #[test]
+    fn parse_use_after_directive_error() {
+        let err = parse("network testnet\nuse \"token.soroabi\" as Token").unwrap_err();
+        assert!(err
+            .message
+            .contains("'use' declarations must appear before"));
+    }
+
+    // ── Dot-syntax calls ────────────────────────────────────────────
+
+    #[test]
+    fn parse_call_dot_syntax() {
+        let prog = parse("call Token.transfer(u32(1))").unwrap();
+        assert_eq!(prog.calls.len(), 1);
+        assert_eq!(prog.calls[0].interface, Some("Token".to_string()));
+        assert_eq!(prog.calls[0].contract, "_");
+        assert_eq!(prog.calls[0].method, "transfer");
+        assert_eq!(prog.calls[0].args.len(), 1);
+    }
+
+    #[test]
+    fn parse_call_dot_syntax_no_args() {
+        let prog = parse("call Pool.get_reserves()").unwrap();
+        assert_eq!(prog.calls[0].interface, Some("Pool".to_string()));
+        assert_eq!(prog.calls[0].method, "get_reserves");
+        assert!(prog.calls[0].args.is_empty());
+    }
+
+    #[test]
+    fn parse_call_traditional_has_no_interface() {
+        let prog = parse("call CABC method()").unwrap();
+        assert_eq!(prog.calls[0].interface, None);
+        assert_eq!(prog.calls[0].contract, "CABC");
+    }
+
+    #[test]
+    fn parse_program_with_uses_and_calls() {
+        let src = r#"use "token.soroabi" as Token
+
+network testnet
+source GABC
+
+call Token.transfer(u32(1))
+call CABC other()"#;
+        let prog = parse(src).unwrap();
+        assert_eq!(prog.uses.len(), 1);
+        assert_eq!(prog.directives.len(), 2);
+        assert_eq!(prog.calls.len(), 2);
+        assert_eq!(prog.calls[0].interface, Some("Token".to_string()));
+        assert_eq!(prog.calls[1].interface, None);
     }
 }
