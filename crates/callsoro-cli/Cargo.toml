@@ -20,3 +20,4 @@ serde_json = { workspace = true }
 [dev-dependencies]
 tempfile = "3"
 stellar-xdr = { workspace = true }
+stellar-strkey = { workspace = true }

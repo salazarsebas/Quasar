@@ -93,7 +93,9 @@ pub fn resolve_rpc_url(explicit: Option<&str>, network: &str) -> Result<String, 
 }
 
 /// Parse a simulateTransaction result JSON into a `SimulationOutcome`.
-fn parse_simulation_outcome(result: &Value) -> Result<SimulationOutcome, SimulationError> {
+pub(crate) fn parse_simulation_outcome(
+    result: &Value,
+) -> Result<SimulationOutcome, SimulationError> {
     // Check for simulation-level error
     if let Some(error) = result.get("error") {
         let error_str = error.as_str().unwrap_or("unknown simulation error");

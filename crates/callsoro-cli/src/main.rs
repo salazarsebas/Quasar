@@ -5,7 +5,9 @@ use std::process;
 
 use callsoro_check::{Diagnostic, Resolver, Severity, TypeCheckError, TypeChecker, Validator};
 use callsoro_compile::{Compiler, JsonIR, XdrCompiler};
-use callsoro_exec::{AbiImporter, Simulator};
+use callsoro_exec::{
+    AbiImporter, ExecutionOutcome, ExecutionResult, Executor, ExecutorConfig, Simulator,
+};
 use callsoro_syntax::ast::{Call, ConstDecl, ConstValue, Directive, MapEntry, Program, Value};
 use callsoro_syntax::lexer::Lexer;
 use callsoro_syntax::parser::Parser;
@@ -82,6 +84,29 @@ enum Commands {
         /// Output file (default: stdout)
         #[arg(short)]
         o: Option<String>,
+    },
+    /// Execute a .soro script: simulate, sign, and submit transactions
+    Run {
+        /// Input .soro file
+        file: String,
+        /// Stellar secret key (S...)
+        #[arg(long)]
+        secret_key: Option<String>,
+        /// Environment variable to read secret key from (default: SORO_SECRET_KEY)
+        #[arg(long, default_value = "SORO_SECRET_KEY")]
+        env: String,
+        /// RPC endpoint URL (overrides CALLSORO_RPC_URL env and network default)
+        #[arg(long)]
+        rpc_url: Option<String>,
+        /// Simulate only, don't submit
+        #[arg(long)]
+        dry_run: bool,
+        /// Output full result in JSON
+        #[arg(long)]
+        json: bool,
+        /// Skip mainnet confirmation prompt
+        #[arg(long)]
+        yes: bool,
     },
     /// Print compiler version
     Version,
@@ -727,10 +752,226 @@ fn main() {
             }
         }
 
+        Commands::Run {
+            file,
+            secret_key,
+            env,
+            rpc_url,
+            dry_run,
+            json,
+            yes,
+        } => {
+            let source = read_file(&file, c);
+            match run_pipeline(&source, &file, c) {
+                PipelineResult::Compiled(ir) => {
+                    // 1. Resolve secret key
+                    let sk = resolve_secret_key(secret_key.as_deref(), &env, c);
+
+                    // 2. Validate secret key format early
+                    if let Err(e) = callsoro_exec::decode_secret_key(&sk) {
+                        eprintln!("{}{}error{}: {}", c.red, c.bold, c.reset, e);
+                        process::exit(1);
+                    }
+
+                    // 3. Compile to XDR
+                    let transactions = match XdrCompiler::compile(&ir) {
+                        Ok(t) => t,
+                        Err(e) => {
+                            eprintln!("{}{}error{}: {}", c.red, c.bold, c.reset, e);
+                            process::exit(1);
+                        }
+                    };
+
+                    // 4. Resolve RPC URL
+                    let url = match callsoro_exec::simulator::resolve_rpc_url(
+                        rpc_url.as_deref(),
+                        &ir.network,
+                    ) {
+                        Ok(u) => u,
+                        Err(e) => {
+                            eprintln!("{}{}error{}: {}", c.red, c.bold, c.reset, e);
+                            process::exit(1);
+                        }
+                    };
+
+                    // 5. Mainnet confirmation
+                    if ir.network == "mainnet"
+                        && !yes
+                        && !dry_run
+                        && !confirm_mainnet_execution(&ir, c)
+                    {
+                        eprintln!("Cancelled.");
+                        process::exit(0);
+                    }
+
+                    // 6. Execute
+                    let config = ExecutorConfig {
+                        secret_key: sk,
+                        dry_run,
+                        ..Default::default()
+                    };
+                    let executor = Executor::new(&url, config);
+
+                    match executor.execute(&transactions, &ir) {
+                        Ok(results) => {
+                            if json {
+                                let json_out = serde_json::to_string_pretty(&results)
+                                    .expect("JSON serialization failed");
+                                println!("{}", json_out);
+                            } else {
+                                for result in &results {
+                                    print!(
+                                        "{}",
+                                        format_execution_result(
+                                            result,
+                                            results.len(),
+                                            &ir.network,
+                                            c
+                                        )
+                                    );
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("{}{}error{}: {}", c.red, c.bold, c.reset, e);
+                            process::exit(1);
+                        }
+                    }
+                }
+                PipelineResult::Errors => process::exit(1),
+            }
+        }
+
         Commands::Version => {
             println!("callsoro v{}", env!("CARGO_PKG_VERSION"));
         }
     }
+}
+
+/// Resolve secret key from --secret-key flag or environment variable.
+fn resolve_secret_key(explicit: Option<&str>, env_var: &str, c: &Colors) -> String {
+    if let Some(sk) = explicit {
+        eprintln!(
+            "{}warning{}: passing secret keys via CLI arguments may expose them in shell history",
+            c.yellow, c.reset
+        );
+        return sk.to_string();
+    }
+
+    match std::env::var(env_var) {
+        Ok(sk) if !sk.is_empty() => sk,
+        _ => {
+            eprintln!(
+                "{}{}error{}: no secret key provided. Use --secret-key SK... or set {}",
+                c.red, c.bold, c.reset, env_var
+            );
+            process::exit(1);
+        }
+    }
+}
+
+/// Interactive mainnet confirmation prompt.
+fn confirm_mainnet_execution(ir: &JsonIR, c: &Colors) -> bool {
+    let count = ir.calls.len();
+    let fee_per_tx = ir.signing.fee_stroops;
+    let total_fee = fee_per_tx * count as u64;
+    let xlm = total_fee as f64 / 10_000_000.0;
+
+    eprintln!(
+        "\n{}WARNING{}: This will submit {} transaction(s) to {}MAINNET{}",
+        c.yellow, c.reset, count, c.bold, c.reset
+    );
+    eprintln!("Estimated base fee: {} stroops ({:.7} XLM)", total_fee, xlm);
+    eprint!("Continue? [y/N] ");
+
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input).unwrap_or(0);
+    input.trim().eq_ignore_ascii_case("y")
+}
+
+/// Format a single execution result for human-readable output.
+fn format_execution_result(
+    result: &ExecutionResult,
+    total_calls: usize,
+    network: &str,
+    c: &Colors,
+) -> String {
+    let contract_short = if result.contract.len() > 10 {
+        format!(
+            "{}...{}",
+            &result.contract[..4],
+            &result.contract[result.contract.len() - 4..]
+        )
+    } else {
+        result.contract.clone()
+    };
+
+    let mut out = format!(
+        "Executing call {}/{}: {}.{}()\n",
+        result.call_index + 1,
+        total_calls,
+        contract_short,
+        result.method
+    );
+
+    match &result.outcome {
+        ExecutionOutcome::Success {
+            tx_hash,
+            ledger,
+            fee_charged,
+            return_value,
+        } => {
+            out.push_str(&format!(
+                "  Simulating...    {}OK{} (fee: {} stroops)\n",
+                c.bold, c.reset, fee_charged
+            ));
+            out.push_str(&format!("  Signing...       {}OK{}\n", c.bold, c.reset));
+            let hash_short = if tx_hash.len() > 8 {
+                &tx_hash[..8]
+            } else {
+                tx_hash
+            };
+            out.push_str(&format!(
+                "  Submitting...    {}OK{} (hash: {}...)\n",
+                c.bold, c.reset, hash_short
+            ));
+            out.push_str(&format!(
+                "  Waiting...       {}SUCCESS{} (ledger: {})\n",
+                c.bold, c.reset, ledger
+            ));
+            let ret = return_value.as_deref().unwrap_or("void");
+            out.push_str(&format!("  Return value:    {}\n", ret));
+            out.push_str(&format!("\n  Transaction: {}\n", tx_hash));
+
+            let explorer_net = match network {
+                "testnet" => "testnet",
+                "mainnet" => "public",
+                other => other,
+            };
+            out.push_str(&format!(
+                "  Explorer:    https://stellar.expert/explorer/{}/tx/{}\n",
+                explorer_net, tx_hash
+            ));
+        }
+        ExecutionOutcome::Failed { tx_hash, error } => {
+            out.push_str(&format!("  Status:     {}FAILED{}\n", c.red, c.reset));
+            out.push_str(&format!("  Error:      {}\n", error));
+            if let Some(hash) = tx_hash {
+                out.push_str(&format!("  Hash:       {}\n", hash));
+            }
+        }
+        ExecutionOutcome::Simulated { fee, return_value } => {
+            out.push_str(&format!(
+                "  Simulating...    {}OK{} (fee: {} stroops)\n",
+                c.bold, c.reset, fee
+            ));
+            let ret = return_value.as_deref().unwrap_or("void");
+            out.push_str(&format!("  Return value:    {}\n", ret));
+            out.push_str("  (dry-run mode: transaction not submitted)\n");
+        }
+    }
+
+    out
 }
 
 fn read_file(path: &str, c: &Colors) -> String {
@@ -1383,6 +1624,179 @@ mod tests {
         assert!(
             stderr.contains("cannot read ABI file"),
             "stderr: {}",
+            stderr
+        );
+    }
+
+    // ---- Run ----
+
+    #[test]
+    fn run_help_shows_subcommand() {
+        build_binary();
+        let output = Command::new(cargo_bin())
+            .args(["run", "--help"])
+            .output()
+            .expect("failed to run");
+        assert!(output.status.success());
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.contains("--secret-key"), "stdout: {}", stdout);
+        assert!(stdout.contains("--dry-run"), "stdout: {}", stdout);
+        assert!(stdout.contains("--json"), "stdout: {}", stdout);
+        assert!(stdout.contains("--yes"), "stdout: {}", stdout);
+        assert!(stdout.contains("--env"), "stdout: {}", stdout);
+    }
+
+    #[test]
+    fn run_missing_secret_key_exits_1() {
+        build_binary();
+        let output = Command::new(cargo_bin())
+            .args([
+                "run",
+                fixtures_dir().join("transfer.soro").to_str().unwrap(),
+            ])
+            .arg("--no-color")
+            .env_remove("SORO_SECRET_KEY")
+            .output()
+            .expect("failed to run");
+        assert!(!output.status.success(), "should exit 1 without secret key");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("no secret key provided"),
+            "stderr: {}",
+            stderr
+        );
+    }
+
+    #[test]
+    fn run_invalid_secret_key_exits_1() {
+        build_binary();
+        let output = Command::new(cargo_bin())
+            .args([
+                "run",
+                fixtures_dir().join("transfer.soro").to_str().unwrap(),
+                "--secret-key",
+                "INVALID_KEY",
+            ])
+            .arg("--no-color")
+            .env_remove("SORO_SECRET_KEY")
+            .output()
+            .expect("failed to run");
+        assert!(!output.status.success(), "should exit 1 on invalid key");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("invalid secret key"), "stderr: {}", stderr);
+    }
+
+    #[test]
+    fn run_secret_key_from_env_accepted() {
+        build_binary();
+        // Use a valid-format secret key (won't actually work on-chain but parses correctly)
+        let sk = stellar_strkey::Strkey::PrivateKeyEd25519(stellar_strkey::ed25519::PrivateKey(
+            [1u8; 32],
+        ));
+        let sk_str: String = {
+            let h = sk.to_string();
+            String::from(h.as_str())
+        };
+        let output = Command::new(cargo_bin())
+            .args([
+                "run",
+                fixtures_dir().join("transfer.soro").to_str().unwrap(),
+                "--rpc-url",
+                "http://127.0.0.1:1",
+            ])
+            .arg("--no-color")
+            .env("SORO_SECRET_KEY", &sk_str)
+            .output()
+            .expect("failed to run");
+        // Will fail at network layer, but should NOT fail with "no secret key" or "invalid secret key"
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !stderr.contains("no secret key provided"),
+            "should pick up env var: {}",
+            stderr
+        );
+        assert!(
+            !stderr.contains("invalid secret key"),
+            "env key should be valid: {}",
+            stderr
+        );
+    }
+
+    #[test]
+    fn run_dry_run_flag_accepted() {
+        build_binary();
+        let output = Command::new(cargo_bin())
+            .args([
+                "run",
+                fixtures_dir().join("transfer.soro").to_str().unwrap(),
+                "--secret-key",
+                "INVALID",
+                "--dry-run",
+            ])
+            .arg("--no-color")
+            .env_remove("SORO_SECRET_KEY")
+            .output()
+            .expect("failed to run");
+        // Will fail on invalid key, but --dry-run should be accepted (no "unexpected argument")
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !stderr.contains("unexpected argument"),
+            "should accept --dry-run: {}",
+            stderr
+        );
+    }
+
+    #[test]
+    fn run_json_flag_accepted() {
+        build_binary();
+        let output = Command::new(cargo_bin())
+            .args([
+                "run",
+                fixtures_dir().join("transfer.soro").to_str().unwrap(),
+                "--secret-key",
+                "INVALID",
+                "--json",
+            ])
+            .arg("--no-color")
+            .env_remove("SORO_SECRET_KEY")
+            .output()
+            .expect("failed to run");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !stderr.contains("unexpected argument"),
+            "should accept --json: {}",
+            stderr
+        );
+    }
+
+    #[test]
+    fn run_unreachable_rpc_exits_1() {
+        build_binary();
+        let sk = stellar_strkey::Strkey::PrivateKeyEd25519(stellar_strkey::ed25519::PrivateKey(
+            [1u8; 32],
+        ));
+        let sk_str: String = {
+            let h = sk.to_string();
+            String::from(h.as_str())
+        };
+        let output = Command::new(cargo_bin())
+            .args([
+                "run",
+                fixtures_dir().join("transfer.soro").to_str().unwrap(),
+                "--secret-key",
+                &sk_str,
+                "--rpc-url",
+                "http://127.0.0.1:1",
+            ])
+            .arg("--no-color")
+            .env_remove("SORO_SECRET_KEY")
+            .output()
+            .expect("failed to run");
+        assert!(!output.status.success(), "should exit 1 on unreachable RPC");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("error"),
+            "stderr should contain error: {}",
             stderr
         );
     }

@@ -5,6 +5,34 @@ use serde_json::{json, Value};
 use crate::error::SimulationError;
 use crate::types::AccountInfo;
 
+/// Response from `sendTransaction` RPC.
+#[derive(Debug, Clone)]
+pub struct SendTransactionResponse {
+    /// Transaction hash
+    pub hash: String,
+    /// Status: "PENDING", "DUPLICATE", "ERROR", "TRY_AGAIN_LATER"
+    pub status: String,
+    /// Error result XDR (present when status is "ERROR")
+    pub error_result_xdr: Option<String>,
+    /// Diagnostic events XDR (present when status is "ERROR")
+    pub diagnostic_events_xdr: Vec<String>,
+}
+
+/// Response from `getTransaction` RPC.
+#[derive(Debug, Clone)]
+pub struct GetTransactionResponse {
+    /// Status: "SUCCESS", "FAILED", "NOT_FOUND"
+    pub status: String,
+    /// Ledger number where the transaction was included
+    pub ledger: Option<u64>,
+    /// Transaction result XDR
+    pub result_xdr: Option<String>,
+    /// Transaction result meta XDR
+    pub result_meta_xdr: Option<String>,
+    /// Transaction envelope XDR
+    pub envelope_xdr: Option<String>,
+}
+
 /// JSON-RPC client for communicating with a Soroban RPC server.
 pub struct RpcClient {
     client: reqwest::blocking::Client,
@@ -35,6 +63,24 @@ impl RpcClient {
         );
         let response = self.send_request(&body)?;
         parse_simulate_response(&response)
+    }
+
+    /// Submit a signed transaction via `sendTransaction`.
+    pub fn send_transaction(
+        &self,
+        tx_xdr_base64: &str,
+    ) -> Result<SendTransactionResponse, SimulationError> {
+        let body =
+            build_jsonrpc_request("sendTransaction", json!({ "transaction": tx_xdr_base64 }));
+        let response = self.send_request(&body)?;
+        parse_send_transaction_response(&response)
+    }
+
+    /// Poll transaction status via `getTransaction`.
+    pub fn get_transaction(&self, hash: &str) -> Result<GetTransactionResponse, SimulationError> {
+        let body = build_jsonrpc_request("getTransaction", json!({ "hash": hash }));
+        let response = self.send_request(&body)?;
+        parse_get_transaction_response(&response)
     }
 
     /// Fetch ledger entries by their base64-encoded XDR keys.
@@ -162,6 +208,112 @@ pub(crate) fn parse_ledger_entries_response(response: &Value) -> Result<Value, S
         .ok_or_else(|| SimulationError::InvalidResponse("missing 'result' field".to_string()))?;
 
     Ok(result.clone())
+}
+
+/// Parse a `sendTransaction` response.
+pub(crate) fn parse_send_transaction_response(
+    response: &Value,
+) -> Result<SendTransactionResponse, SimulationError> {
+    if let Some(error) = response.get("error") {
+        let code = error.get("code").and_then(|c| c.as_i64()).unwrap_or(0);
+        let message = error
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("unknown error")
+            .to_string();
+        return Err(SimulationError::RpcError { code, message });
+    }
+
+    let result = response
+        .get("result")
+        .ok_or_else(|| SimulationError::InvalidResponse("missing 'result' field".to_string()))?;
+
+    let hash = result
+        .get("hash")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let status = result
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("UNKNOWN")
+        .to_string();
+
+    let error_result_xdr = result
+        .get("errorResultXdr")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let diagnostic_events_xdr: Vec<String> = result
+        .get("diagnosticEventsXdr")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|e| e.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(SendTransactionResponse {
+        hash,
+        status,
+        error_result_xdr,
+        diagnostic_events_xdr,
+    })
+}
+
+/// Parse a `getTransaction` response.
+pub(crate) fn parse_get_transaction_response(
+    response: &Value,
+) -> Result<GetTransactionResponse, SimulationError> {
+    if let Some(error) = response.get("error") {
+        let code = error.get("code").and_then(|c| c.as_i64()).unwrap_or(0);
+        let message = error
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("unknown error")
+            .to_string();
+        return Err(SimulationError::RpcError { code, message });
+    }
+
+    let result = response
+        .get("result")
+        .ok_or_else(|| SimulationError::InvalidResponse("missing 'result' field".to_string()))?;
+
+    let status = result
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("UNKNOWN")
+        .to_string();
+
+    let ledger = result.get("ledger").and_then(|v| {
+        v.as_u64()
+            .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+    });
+
+    let result_xdr = result
+        .get("resultXdr")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let result_meta_xdr = result
+        .get("resultMetaXdr")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let envelope_xdr = result
+        .get("envelopeXdr")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    Ok(GetTransactionResponse {
+        status,
+        ledger,
+        result_xdr,
+        result_meta_xdr,
+        envelope_xdr,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -305,5 +457,80 @@ mod tests {
             }
             other => panic!("expected RpcError, got {:?}", other),
         }
+    }
+
+    // ---- sendTransaction ----
+
+    #[test]
+    fn parse_send_transaction_pending() {
+        let response = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+                "hash": "abc123def456",
+                "status": "PENDING"
+            }
+        });
+        let resp = parse_send_transaction_response(&response).unwrap();
+        assert_eq!(resp.hash, "abc123def456");
+        assert_eq!(resp.status, "PENDING");
+        assert!(resp.error_result_xdr.is_none());
+        assert!(resp.diagnostic_events_xdr.is_empty());
+    }
+
+    #[test]
+    fn parse_send_transaction_error() {
+        let response = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+                "hash": "abc123def456",
+                "status": "ERROR",
+                "errorResultXdr": "AAAAERROR",
+                "diagnosticEventsXdr": ["event1", "event2"]
+            }
+        });
+        let resp = parse_send_transaction_response(&response).unwrap();
+        assert_eq!(resp.status, "ERROR");
+        assert_eq!(resp.error_result_xdr, Some("AAAAERROR".to_string()));
+        assert_eq!(resp.diagnostic_events_xdr.len(), 2);
+    }
+
+    // ---- getTransaction ----
+
+    #[test]
+    fn parse_get_transaction_success() {
+        let response = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+                "status": "SUCCESS",
+                "ledger": 1234567,
+                "resultXdr": "AAAA",
+                "resultMetaXdr": "BBBB",
+                "envelopeXdr": "CCCC"
+            }
+        });
+        let resp = parse_get_transaction_response(&response).unwrap();
+        assert_eq!(resp.status, "SUCCESS");
+        assert_eq!(resp.ledger, Some(1234567));
+        assert_eq!(resp.result_xdr, Some("AAAA".to_string()));
+        assert_eq!(resp.result_meta_xdr, Some("BBBB".to_string()));
+        assert_eq!(resp.envelope_xdr, Some("CCCC".to_string()));
+    }
+
+    #[test]
+    fn parse_get_transaction_not_found() {
+        let response = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+                "status": "NOT_FOUND"
+            }
+        });
+        let resp = parse_get_transaction_response(&response).unwrap();
+        assert_eq!(resp.status, "NOT_FOUND");
+        assert!(resp.ledger.is_none());
+        assert!(resp.result_xdr.is_none());
     }
 }

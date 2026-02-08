@@ -62,3 +62,54 @@ pub struct AccountInfo {
     /// Current sequence number
     pub sequence: i64,
 }
+
+// ---------------------------------------------------------------------------
+// Execution result types
+// ---------------------------------------------------------------------------
+
+/// Result of executing a single contract invocation on-chain.
+#[derive(Debug, Clone, Serialize)]
+pub struct ExecutionResult {
+    /// 0-based index of the call within the script
+    pub call_index: usize,
+    /// Contract address (C...)
+    pub contract: String,
+    /// Function name
+    pub method: String,
+    /// Execution outcome
+    pub outcome: ExecutionOutcome,
+}
+
+/// Outcome of a single transaction execution.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "status")]
+pub enum ExecutionOutcome {
+    /// Transaction confirmed on-chain
+    #[serde(rename = "success")]
+    Success {
+        /// Transaction hash
+        tx_hash: String,
+        /// Ledger number where the transaction was included
+        ledger: u64,
+        /// Total fee charged (base + resource)
+        fee_charged: u64,
+        /// Return value as base64 XDR (ScVal), if any
+        return_value: Option<String>,
+    },
+    /// Transaction failed (at simulation or on-chain)
+    #[serde(rename = "failed")]
+    Failed {
+        /// Transaction hash (None if failed before submission)
+        tx_hash: Option<String>,
+        /// Error description
+        error: String,
+    },
+    /// Dry-run mode: only simulated, not submitted
+    #[serde(rename = "simulated")]
+    Simulated {
+        /// Estimated total fee in stroops
+        fee: u64,
+        /// Return value as base64 XDR (ScVal), if any
+        return_value: Option<String>,
+    },
+}

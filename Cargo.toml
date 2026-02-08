@@ -35,6 +35,10 @@ stellar-strkey = "0.0.16"
 # HTTP
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "blocking", "json"] }
 
+# Crypto
+ed25519-dalek = { version = "2", features = ["std"] }
+sha2 = "0.10"
+
 # WASM
 wasmparser = "0.221"
 
