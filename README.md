@@ -62,7 +62,7 @@ quasar check transfer.soro
 quasar simulate transfer.soro --network testnet
 
 # Execute for real
-quasar run transfer.soro --signer secret_key
+quasar run transfer.soro --secret-key SK...
 ```
 
 ## Syntax
@@ -174,13 +174,11 @@ quasar/
 ├── crates/
 │   ├── quasar-syntax/     # Lexer, parser, AST (zero external deps)
 │   ├── quasar-check/      # Semantic validation, type checking
-│   ├── quasar-compile/    # AST -> JSON IR
-│   ├── quasar-xdr/        # JSON IR -> Stellar XDR (uses stellar-xdr)
-│   ├── quasar-exec/       # Simulate, sign, submit (uses soroban-client)
+│   ├── quasar-compile/    # AST -> JSON IR + XDR (uses stellar-xdr)
+│   ├── quasar-exec/       # Simulate, sign, submit (uses reqwest)
 │   └── quasar-cli/        # CLI binary
-├── tests/
-│   └── fixtures/            # .soro scripts + expected outputs
-└── examples/                # Real-world .soro scripts
+└── tests/
+    └── fixtures/            # .soro scripts + expected outputs
 ```
 
 ### Intermediate JSON Format
@@ -196,15 +194,15 @@ The compiler produces a JSON intermediate representation before XDR encoding:
       "contract": "CB6TLGNLWKZR4VKQPD3FNRPNEUTXOKVMI7AF3WS2QBSF2VMHQGER7BLH",
       "method": "transfer",
       "args": [
-        { "address": "GB3MRDIQO2HFBLAG2CSMHPYZFVPQOYPEV3BUKY2GMQKKQRMO4OERGKHR" },
-        { "address": "GCVZ6KBMRLE32NB4UU5K37RPJNPFUNQZFYOPKJMZODDTQX4RREZDDMI" },
-        { "i128": "10000000" }
+        { "type": "address", "value": "GB3MRDIQO2HFBLAG2CSMHPYZFVPQOYPEV3BUKY2GMQKKQRMO4OERGKHR" },
+        { "type": "address", "value": "GCVZ6KBMRLE32NB4UU5K37RPJNPFUNQZFYOPKJMZODDTQX4RREZDDMI" },
+        { "type": "i128", "value": "10000000" }
       ]
     }
   ],
   "signing": {
     "source": "GB3MRDIQO2HFBLAG2CSMHPYZFVPQOYPEV3BUKY2GMQKKQRMO4OERGKHR",
-    "fee": 100000,
+    "fee_stroops": 100000,
     "timeout_seconds": 60
   }
 }
