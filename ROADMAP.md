@@ -1,4 +1,4 @@
-# CallSoro Roadmap
+# Quasar Roadmap
 
 Implementation roadmap split into incremental phases. Each phase produces something functional and testable. Early phases are deliberately simple to establish a solid foundation before adding complexity.
 
@@ -10,7 +10,7 @@ Implementation roadmap split into incremental phases. Each phase produces someth
 
 ### Tasks
 
-- [ ] Create Cargo workspace with crates: `callsoro-syntax`, `callsoro-check`, `callsoro-compile`, `callsoro-cli`
+- [ ] Create Cargo workspace with crates: `quasar-syntax`, `quasar-check`, `quasar-compile`, `quasar-cli`
 - [ ] Set up GitHub Actions: `cargo check`, `cargo test`, `cargo clippy`, `cargo fmt --check`
 - [ ] Add `insta` as a dev dependency for snapshot testing
 - [ ] Create `tests/fixtures/` directory with a sample `.soro` file and its expected `.json` output
@@ -75,7 +75,7 @@ Tokens:
 
 ### Deliverable
 
-`callsoro-syntax` exposes `Lexer::new(source: &str)` that produces `Vec<Token>` or errors with exact position.
+`quasar-syntax` exposes `Lexer::new(source: &str)` that produces `Vec<Token>` or errors with exact position.
 
 ---
 
@@ -126,7 +126,7 @@ enum Value {
 
 ### Tasks
 
-- [ ] Define AST structs in `callsoro-syntax/src/ast.rs`
+- [ ] Define AST structs in `quasar-syntax/src/ast.rs`
 - [ ] Implement `Parser` with recursive descent:
   - `parse_program()` -> `Program`
   - `parse_directive()` -> `Directive`
@@ -194,7 +194,7 @@ enum Value {
 
 ### Tasks
 
-- [ ] Implement `Validator` in `callsoro-check` that takes a `Program` and returns `Vec<Diagnostic>`
+- [ ] Implement `Validator` in `quasar-check` that takes a `Program` and returns `Vec<Diagnostic>`
 - [ ] Each `Diagnostic` has: severity (Error/Warning), message, span, help text
 - [ ] Implement Stellar StrKey validation with CRC16 checksum (no external dependency, it's a 2-byte CRC16-XModem)
 - [ ] Error format:
@@ -262,7 +262,7 @@ enum Value {
 
 ### Tasks
 
-- [ ] Define JSON IR structs in `callsoro-compile/src/ir.rs` with `serde::Serialize`
+- [ ] Define JSON IR structs in `quasar-compile/src/ir.rs` with `serde::Serialize`
 - [ ] Implement `Compiler::compile(program: &Program) -> JsonIR`
 - [ ] Map AST `Value` to tagged JSON format:
   - `Value::Bool(true)` -> `{ "type": "bool", "value": true }`
@@ -292,7 +292,7 @@ enum Value {
 
 ### Deliverable
 
-`callsoro compile input.soro` produces valid JSON to stdout or to a file with `-o`. The JSON is deterministic (same input = same output byte for byte).
+`quasar compile input.soro` produces valid JSON to stdout or to a file with `-o`. The JSON is deterministic (same input = same output byte for byte).
 
 ---
 
@@ -303,10 +303,10 @@ enum Value {
 ### Commands
 
 ```
-callsoro compile <file.soro> [-o output.json]   # Compile to JSON IR
-callsoro check <file.soro>                      # Validate only (errors + warnings)
-callsoro fmt <file.soro> [--write]              # Format (stdout by default, --write in-place)
-callsoro version                                # Compiler version
+quasar compile <file.soro> [-o output.json]   # Compile to JSON IR
+quasar check <file.soro>                      # Validate only (errors + warnings)
+quasar fmt <file.soro> [--write]              # Format (stdout by default, --write in-place)
+quasar version                                # Compiler version
 ```
 
 ### Tasks
@@ -330,21 +330,21 @@ callsoro version                                # Compiler version
 
 | Test | Command | Expected Result |
 |------|---------|-----------------|
-| Successful compile | `callsoro compile valid.soro` | JSON to stdout, exit code 0 |
-| Compile with output | `callsoro compile valid.soro -o out.json` | File created, exit code 0 |
-| Compile with error | `callsoro compile invalid.soro` | Errors to stderr, exit code 1 |
-| Valid check | `callsoro check valid.soro` | "No errors found", exit code 0 |
-| Check with warnings | `callsoro check low_fee.soro` | Warning to stderr, exit code 0 |
-| Check with errors | `callsoro check broken.soro` | Errors to stderr, exit code 1 |
-| Idempotent fmt | `callsoro fmt file.soro` twice | Same output both times |
-| Fmt --write | `callsoro fmt file.soro --write` | File overwritten |
-| File not found | `callsoro compile noexist.soro` | Clear error, exit code 1 |
-| Pipe friendly | `callsoro compile f.soro \| jq .` | JSON parseable by jq |
+| Successful compile | `quasar compile valid.soro` | JSON to stdout, exit code 0 |
+| Compile with output | `quasar compile valid.soro -o out.json` | File created, exit code 0 |
+| Compile with error | `quasar compile invalid.soro` | Errors to stderr, exit code 1 |
+| Valid check | `quasar check valid.soro` | "No errors found", exit code 0 |
+| Check with warnings | `quasar check low_fee.soro` | Warning to stderr, exit code 0 |
+| Check with errors | `quasar check broken.soro` | Errors to stderr, exit code 1 |
+| Idempotent fmt | `quasar fmt file.soro` twice | Same output both times |
+| Fmt --write | `quasar fmt file.soro --write` | File overwritten |
+| File not found | `quasar compile noexist.soro` | Clear error, exit code 1 |
+| Pipe friendly | `quasar compile f.soro \| jq .` | JSON parseable by jq |
 | Integration tests | All fixtures from `tests/fixtures/` | Expected results |
 
 ### Deliverable
 
-`callsoro` binary installable with `cargo install`. Errors with color, exact position, and fix suggestions. A user can write a `.soro` file, compile it, and get valid JSON.
+`quasar` binary installable with `cargo install`. Errors with color, exact position, and fix suggestions. A user can write a `.soro` file, compile it, and get valid JSON.
 
 ---
 
@@ -460,7 +460,7 @@ struct CompiledTransaction {
   - `G...` -> `ScAddress::Account(AccountId(PublicKey::Ed25519(...)))`
   - `C...` -> `ScAddress::Contract(Hash(...))`
 - [ ] Serialize `InvokeContractArgs` to XDR bytes + base64
-- [ ] New CLI command: `callsoro xdr input.soro` (output: base64 XDR per call)
+- [ ] New CLI command: `quasar xdr input.soro` (output: base64 XDR per call)
 
 ### Tests
 
@@ -476,7 +476,7 @@ struct CompiledTransaction {
 | Symbol | `symbol("transfer")` | `ScVal::Symbol(ScSymbol("transfer"))` |
 | Vec | `vec(u32(1), u32(2))` | `ScVal::Vec(Some(ScVec([U32(1), U32(2)])))` |
 | XDR roundtrip | Compile and deserialize XDR | Identical structs |
-| Valid base64 | Output of `callsoro xdr` | Base64 decodable to valid XDR |
+| Valid base64 | Output of `quasar xdr` | Base64 decodable to valid XDR |
 
 ### Deliverable
 
@@ -511,7 +511,7 @@ Given a `.soro` file, produce `InvokeContractArgs` in base64 XDR, ready to be us
 ### Tasks
 
 - [ ] Add dependency: `soroban-client` or `reqwest` + manual JSON-RPC
-- [ ] Implement `Simulator` in `callsoro-exec`:
+- [ ] Implement `Simulator` in `quasar-exec`:
   1. Load account sequence number via `getAccount` RPC
   2. Build `Transaction` with `InvokeHostFunctionOp`
   3. Serialize to base64 XDR
@@ -532,8 +532,8 @@ Given a `.soro` file, produce `InvokeContractArgs` in base64 XDR, ready to be us
     Fee:        154,231 stroops (resource) + 100 (base) = 154,331 total
     Events:     1 contract event
   ```
-- [ ] New CLI command: `callsoro simulate input.soro [--network testnet]`
-- [ ] Support for configurable RPC URL: `--rpc-url <url>` or env `CALLSORO_RPC_URL`
+- [ ] New CLI command: `quasar simulate input.soro [--network testnet]`
+- [ ] Support for configurable RPC URL: `--rpc-url <url>` or env `QUASAR_RPC_URL`
 - [ ] Default RPC URLs:
   - testnet: `https://soroban-testnet.stellar.org`
   - mainnet: `https://soroban-rpc.mainnet.stellar.gateway.fm` (or similar)
@@ -554,7 +554,7 @@ Given a `.soro` file, produce `InvokeContractArgs` in base64 XDR, ready to be us
 
 ### Deliverable
 
-`callsoro simulate script.soro` runs a dry-run against the network and shows costs, return values, and potential errors without spending XLM.
+`quasar simulate script.soro` runs a dry-run against the network and shows costs, return values, and potential errors without spending XLM.
 
 ---
 
@@ -608,7 +608,7 @@ Soroban contracts embed their ABI as serialized XDR in the `contractspecv0` cust
 
 ### Tasks
 
-- [ ] Implement `AbiImporter` in `callsoro-check`:
+- [ ] Implement `AbiImporter` in `quasar-check`:
   1. Call RPC `getContractData` or `getLedgerEntries` to get the WASM hash
   2. Call `getLedgerEntries` to get the WASM binary
   3. Parse the `contractspecv0` custom section from the WASM
@@ -621,7 +621,7 @@ Soroban contracts embed their ABI as serialized XDR in the `contractspecv0` cust
   - `SC_SPEC_TYPE_VEC` -> `"vec<element_type>"`
   - `SC_SPEC_TYPE_MAP` -> `"map<key_type, value_type>"`
   - `SC_SPEC_TYPE_UDT` -> reference by name to the custom type
-- [ ] New CLI command: `callsoro import <contract_id> --network testnet [-o token.soroabi]`
+- [ ] New CLI command: `quasar import <contract_id> --network testnet [-o token.soroabi]`
 - [ ] Local cache: save `.soroabi` to avoid re-fetching every time
 
 ### Tests
@@ -638,7 +638,7 @@ Soroban contracts embed their ABI as serialized XDR in the `contractspecv0` cust
 
 ### Deliverable
 
-`callsoro import CB6...XYZ --network testnet` generates a `.soroabi` with the complete contract interface, readable and usable by the next phase.
+`quasar import CB6...XYZ --network testnet` generates a `.soroabi` with the complete contract interface, readable and usable by the next phase.
 
 ---
 
@@ -671,7 +671,7 @@ call Token.balance(address("GB..."), u32(1))
 - [ ] Add `UseDecl { path: String, alias: Option<String>, span }` to the AST
 - [ ] Parser: `use "path.soroabi" [as Alias]`
 - [ ] Add `InterfaceCall` as a Call variant: `Token.transfer(...)` -> contract ID comes from the `.soroabi`
-- [ ] `TypeChecker` in `callsoro-check`:
+- [ ] `TypeChecker` in `quasar-check`:
   1. Load the `.soroabi` referenced by `use`
   2. For each `call Interface.method(...)`:
      - Verify that `method` exists in the interface
@@ -728,7 +728,7 @@ Full type checking against the ABI. Errors at compile time instead of at runtime
 
 ### Tasks
 
-- [ ] Implement `Executor` in `callsoro-exec`:
+- [ ] Implement `Executor` in `quasar-exec`:
   1. Compile to XDR (reuse Phase 7)
   2. Simulate (reuse Phase 8)
   3. Assemble: apply `SorobanTransactionData` + auth entries from simulation
@@ -755,7 +755,7 @@ Full type checking against the ABI. Errors at compile time instead of at runtime
   - `FAILED`: display the error from the transaction result XDR
   - `TRY_AGAIN_LATER`: automatic retry with backoff
   - `DUPLICATE`: inform that it was already submitted
-- [ ] New CLI command: `callsoro run input.soro --secret-key SK...`
+- [ ] New CLI command: `quasar run input.soro --secret-key SK...`
 - [ ] Interactive confirmation before submitting on mainnet:
   ```
   WARNING: This will submit 2 transactions to MAINNET
@@ -790,9 +790,9 @@ Full cycle: `.soro` -> Stellar network. The user can write a script, simulate it
 Ideas for the future, with no defined priority:
 
 - **LSP (Language Server Protocol)**: autocomplete, hover docs, go-to-definition in VS Code
-- **Interactive REPL**: `callsoro repl --network testnet` to explore contracts
+- **Interactive REPL**: `quasar repl --network testnet` to explore contracts
 - **Batch optimization**: detect calls to the same contract and suggest contract-to-contract calls
-- **Watch mode**: `callsoro watch script.soro` recompiles on save
+- **Watch mode**: `quasar watch script.soro` recompiles on save
 - **Plugin system**: pre/post execution hooks
 - **Web playground**: compile to WASM, run in the browser
 

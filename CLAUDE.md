@@ -1,21 +1,21 @@
-# CallSoro — Project Conventions
+# Quasar — Project Conventions
 
 ## Overview
 
-CallSoro is a declarative DSL that compiles `.soro` scripts into Soroban contract invocations (JSON IR and Stellar XDR). The compiler is written in Rust.
+Quasar is a declarative DSL that compiles `.soro` scripts into Soroban contract invocations (JSON IR and Stellar XDR). The compiler is written in Rust.
 
 ## Architecture
 
 ```
-callsoro-syntax   Zero-dep crate: lexer, parser, AST, span types
-callsoro-check    Semantic validation (depends on callsoro-syntax)
-callsoro-compile  AST -> JSON IR (depends on callsoro-syntax)
-callsoro-cli      Binary entry point (depends on all above)
+quasar-syntax   Zero-dep crate: lexer, parser, AST, span types
+quasar-check    Semantic validation (depends on quasar-syntax)
+quasar-compile  AST -> JSON IR (depends on quasar-syntax)
+quasar-cli      Binary entry point (depends on all above)
 ```
 
 ## Code Conventions
 
-- **No unnecessary dependencies** in `callsoro-syntax`. The lexer and parser must have zero external deps.
+- **No unnecessary dependencies** in `quasar-syntax`. The lexer and parser must have zero external deps.
 - **Error types** must always include `Span` for source location. Every error a user sees must show line/column.
 - **Snapshot testing** with `insta` for lexer output, AST output, and compiled JSON. Run `cargo insta review` to update snapshots.
 - **Test fixtures** live in `tests/fixtures/`. Each `.soro` file can have a matching `.expected.json` for compilation tests.
@@ -25,7 +25,7 @@ callsoro-cli      Binary entry point (depends on all above)
 
 ## Naming
 
-- Crate names: `callsoro-{name}` (kebab-case)
+- Crate names: `quasar-{name}` (kebab-case)
 - Module names: snake_case
 - Types: PascalCase
 - File extension: `.soro`

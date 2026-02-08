@@ -1,0 +1,23 @@
+[package]
+name = "quasar-cli"
+description = "CLI binary for the Quasar DSL compiler"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "quasar"
+path = "src/main.rs"
+
+[dependencies]
+quasar-syntax = { workspace = true }
+quasar-check = { workspace = true }
+quasar-compile = { workspace = true }
+quasar-exec = { workspace = true }
+clap = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+stellar-xdr = { workspace = true }
+stellar-strkey = { workspace = true }

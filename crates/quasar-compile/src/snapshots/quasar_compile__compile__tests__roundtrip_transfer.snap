@@ -1,0 +1,34 @@
+---
+source: crates/quasar-compile/src/compile.rs
+expression: json
+---
+{
+  "version": 1,
+  "network": "testnet",
+  "network_passphrase": "Test SDF Network ; September 2015",
+  "calls": [
+    {
+      "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+      "method": "transfer",
+      "args": [
+        {
+          "type": "address",
+          "value": "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"
+        },
+        {
+          "type": "address",
+          "value": "GAAQEAYEAUDAOCAJBIFQYDIOB4IBCEQTCQKRMFYYDENBWHA5DYPSABOV"
+        },
+        {
+          "type": "i128",
+          "value": "10000000"
+        }
+      ]
+    }
+  ],
+  "signing": {
+    "source": "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+    "fee_stroops": 100000,
+    "timeout_seconds": 60
+  }
+}

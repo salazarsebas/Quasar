@@ -1,0 +1,88 @@
+---
+source: crates/quasar-syntax/src/parser.rs
+expression: prog
+---
+Program {
+    uses: [],
+    consts: [],
+    directives: [
+        Network {
+            value: "testnet",
+            span: Span {
+                start: 34,
+                end: 49,
+                line: 2,
+                col: 1,
+            },
+        },
+        Source {
+            value: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+            span: Span {
+                start: 50,
+                end: 114,
+                line: 3,
+                col: 1,
+            },
+        },
+        Fee {
+            value: 100000,
+            span: Span {
+                start: 115,
+                end: 129,
+                line: 4,
+                col: 1,
+            },
+        },
+        Timeout {
+            value: 60,
+            span: Span {
+                start: 130,
+                end: 140,
+                line: 5,
+                col: 1,
+            },
+        },
+    ],
+    calls: [
+        Call {
+            contract: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+            method: "transfer",
+            args: [
+                Address(
+                    "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+                    Span {
+                        start: 216,
+                        end: 283,
+                        line: 8,
+                        col: 3,
+                    },
+                ),
+                Address(
+                    "GAAQEAYEAUDAOCAJBIFQYDIOB4IBCEQTCQKRMFYYDENBWHA5DYPSABOV",
+                    Span {
+                        start: 287,
+                        end: 354,
+                        line: 9,
+                        col: 3,
+                    },
+                ),
+                I128(
+                    "10000000",
+                    Span {
+                        start: 358,
+                        end: 374,
+                        line: 10,
+                        col: 3,
+                    },
+                ),
+            ],
+            interface: None,
+            span: Span {
+                start: 142,
+                end: 376,
+                line: 7,
+                col: 1,
+            },
+        },
+    ],
+}

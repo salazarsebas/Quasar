@@ -1,25 +1,25 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/callsoro-syntax",
-    "crates/callsoro-check",
-    "crates/callsoro-compile",
-    "crates/callsoro-exec",
-    "crates/callsoro-cli",
+    "crates/quasar-syntax",
+    "crates/quasar-check",
+    "crates/quasar-compile",
+    "crates/quasar-exec",
+    "crates/quasar-cli",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/salazarsebas/callsoro"
+repository = "https://github.com/salazarsebas/quasar"
 
 [workspace.dependencies]
 # Internal crates
-callsoro-syntax = { path = "crates/callsoro-syntax" }
-callsoro-check = { path = "crates/callsoro-check" }
-callsoro-compile = { path = "crates/callsoro-compile" }
-callsoro-exec = { path = "crates/callsoro-exec" }
+quasar-syntax = { path = "crates/quasar-syntax" }
+quasar-check = { path = "crates/quasar-check" }
+quasar-compile = { path = "crates/quasar-compile" }
+quasar-exec = { path = "crates/quasar-exec" }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

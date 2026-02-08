@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="public/logo.png" alt="CallSoro" width="180" />
+  <img src="public/logo.png" alt="Quasar" width="180" />
 </p>
 
-<h1 align="center">CallSoro</h1>
+<h1 align="center">Quasar</h1>
 
 <p align="center">
   A declarative DSL that compiles to Soroban contract invocations.<br/>
@@ -18,9 +18,9 @@
 
 ---
 
-## What is CallSoro?
+## What is Quasar?
 
-CallSoro is a small, safe, declarative language for invoking Soroban smart contracts on Stellar. Instead of writing SDK boilerplate to build transactions, you write `.soro` scripts:
+Quasar is a small, safe, declarative language for invoking Soroban smart contracts on Stellar. Instead of writing SDK boilerplate to build transactions, you write `.soro` scripts:
 
 ```
 network testnet
@@ -35,34 +35,34 @@ call CB6TLGNLWKZR4VKQPD3FNRPNEUTXOKVMI7AF3WS2QBSF2VMHQGER7BLH transfer(
 )
 ```
 
-CallSoro compiles this into a validated intermediate representation and ultimately into Stellar XDR transactions ready for simulation, signing, and submission.
+Quasar compiles this into a validated intermediate representation and ultimately into Stellar XDR transactions ready for simulation, signing, and submission.
 
-**CallSoro does NOT execute code.** It compiles. The DSL has no filesystem access, no network calls, no loops, and no side effects. This makes it safe to run on untrusted input.
+**Quasar does NOT execute code.** It compiles. The DSL has no filesystem access, no network calls, no loops, and no side effects. This makes it safe to run on untrusted input.
 
 ## Why?
 
-| Problem | CallSoro's answer |
+| Problem | Quasar's answer |
 |---------|-------------------|
 | SDK boilerplate for every contract call | Declarative `.soro` scripts |
 | Easy to pass wrong argument types to contracts | Type-checked against contract ABI |
 | Hard to audit what a script does | `.soro` files are readable and diffable |
 | Building XDR by hand is error-prone | Compiler handles `ScVal` encoding, `Int128Parts` hi/lo split, address validation |
-| No dry-run before sending real transactions | `callsoro simulate` against Soroban RPC |
+| No dry-run before sending real transactions | `quasar simulate` against Soroban RPC |
 
 ## Quick Start
 
 ```bash
 # Compile a .soro script to intermediate JSON
-callsoro compile transfer.soro -o transfer.json
+quasar compile transfer.soro -o transfer.json
 
 # Validate syntax and types without compiling
-callsoro check transfer.soro
+quasar check transfer.soro
 
 # Simulate against testnet (no signing, no submission)
-callsoro simulate transfer.soro --network testnet
+quasar simulate transfer.soro --network testnet
 
 # Execute for real
-callsoro run transfer.soro --signer secret_key
+quasar run transfer.soro --signer secret_key
 ```
 
 ## Syntax
@@ -143,13 +143,13 @@ call Token.transfer(
 Interface files are auto-generated from deployed contract metadata:
 
 ```bash
-callsoro import CB6TL...BLH --network testnet -o token.soroabi
+quasar import CB6TL...BLH --network testnet -o token.soroabi
 ```
 
 ## Architecture
 
 ```
-                     CallSoro Pipeline
+                     Quasar Pipeline
 
   .soro file         Compilation (safe, offline)        Execution (network)
  ┌──────────┐   ┌────────────────────────────────┐   ┌──────────────────┐
@@ -170,14 +170,14 @@ callsoro import CB6TL...BLH --network testnet -o token.soroabi
 ### Crate Structure
 
 ```
-callsoro/
+quasar/
 ├── crates/
-│   ├── callsoro-syntax/     # Lexer, parser, AST (zero external deps)
-│   ├── callsoro-check/      # Semantic validation, type checking
-│   ├── callsoro-compile/    # AST -> JSON IR
-│   ├── callsoro-xdr/        # JSON IR -> Stellar XDR (uses stellar-xdr)
-│   ├── callsoro-exec/       # Simulate, sign, submit (uses soroban-client)
-│   └── callsoro-cli/        # CLI binary
+│   ├── quasar-syntax/     # Lexer, parser, AST (zero external deps)
+│   ├── quasar-check/      # Semantic validation, type checking
+│   ├── quasar-compile/    # AST -> JSON IR
+│   ├── quasar-xdr/        # JSON IR -> Stellar XDR (uses stellar-xdr)
+│   ├── quasar-exec/       # Simulate, sign, submit (uses soroban-client)
+│   └── quasar-cli/        # CLI binary
 ├── tests/
 │   └── fixtures/            # .soro scripts + expected outputs
 └── examples/                # Real-world .soro scripts
@@ -212,7 +212,7 @@ The compiler produces a JSON intermediate representation before XDR encoding:
 
 Each entry in `calls` maps to one `InvokeContractArgs` XDR struct. The `args` use tagged values that correspond 1:1 to `ScVal` variants.
 
-## Stellar Transaction Flow (what CallSoro handles for you)
+## Stellar Transaction Flow (what Quasar handles for you)
 
 A Soroban contract invocation involves:
 
@@ -223,7 +223,7 @@ A Soroban contract invocation involves:
 5. **Submit** via `sendTransaction` RPC
 6. **Poll** via `getTransaction` until `SUCCESS` or `FAILED`
 
-CallSoro's compiler handles steps 1-3 (encoding ScVal types, building XDR, assembling simulation results). The executor handles steps 4-6.
+Quasar's compiler handles steps 1-3 (encoding ScVal types, building XDR, assembling simulation results). The executor handles steps 4-6.
 
 ## Contributing
 

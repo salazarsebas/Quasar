@@ -1,0 +1,11 @@
+[package]
+name = "quasar-syntax"
+description = "Lexer, parser, and AST definitions for the Quasar DSL"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+insta = { workspace = true }

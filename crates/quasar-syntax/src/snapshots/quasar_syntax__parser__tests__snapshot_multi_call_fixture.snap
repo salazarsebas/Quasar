@@ -1,0 +1,128 @@
+---
+source: crates/quasar-syntax/src/parser.rs
+expression: prog
+---
+Program {
+    uses: [],
+    consts: [],
+    directives: [
+        Network {
+            value: "testnet",
+            span: Span {
+                start: 37,
+                end: 52,
+                line: 2,
+                col: 1,
+            },
+        },
+        Source {
+            value: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+            span: Span {
+                start: 53,
+                end: 117,
+                line: 3,
+                col: 1,
+            },
+        },
+        Fee {
+            value: 100000,
+            span: Span {
+                start: 118,
+                end: 132,
+                line: 4,
+                col: 1,
+            },
+        },
+        Timeout {
+            value: 60,
+            span: Span {
+                start: 133,
+                end: 143,
+                line: 5,
+                col: 1,
+            },
+        },
+    ],
+    calls: [
+        Call {
+            contract: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+            method: "approve",
+            args: [
+                Address(
+                    "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+                    Span {
+                        start: 218,
+                        end: 285,
+                        line: 8,
+                        col: 3,
+                    },
+                ),
+                Address(
+                    "GAAQEAYEAUDAOCAJBIFQYDIOB4IBCEQTCQKRMFYYDENBWHA5DYPSABOV",
+                    Span {
+                        start: 289,
+                        end: 356,
+                        line: 9,
+                        col: 3,
+                    },
+                ),
+                I128(
+                    "5000000",
+                    Span {
+                        start: 360,
+                        end: 375,
+                        line: 10,
+                        col: 3,
+                    },
+                ),
+            ],
+            interface: None,
+            span: Span {
+                start: 145,
+                end: 377,
+                line: 7,
+                col: 1,
+            },
+        },
+        Call {
+            contract: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+            method: "transfer",
+            args: [
+                Address(
+                    "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+                    Span {
+                        start: 453,
+                        end: 520,
+                        line: 14,
+                        col: 3,
+                    },
+                ),
+                Address(
+                    "GAAQEAYEAUDAOCAJBIFQYDIOB4IBCEQTCQKRMFYYDENBWHA5DYPSABOV",
+                    Span {
+                        start: 524,
+                        end: 591,
+                        line: 15,
+                        col: 3,
+                    },
+                ),
+                I128(
+                    "5000000",
+                    Span {
+                        start: 595,
+                        end: 610,
+                        line: 16,
+                        col: 3,
+                    },
+                ),
+            ],
+            interface: None,
+            span: Span {
+                start: 379,
+                end: 612,
+                line: 13,
+                col: 1,
+            },
+        },
+    ],
+}

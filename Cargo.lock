@@ -104,66 +104,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
 
 [[package]]
-name = "callsoro-check"
-version = "0.1.0"
-dependencies = [
- "callsoro-compile",
- "callsoro-syntax",
- "insta",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "callsoro-cli"
-version = "0.1.0"
-dependencies = [
- "callsoro-check",
- "callsoro-compile",
- "callsoro-exec",
- "callsoro-syntax",
- "clap",
- "serde_json",
- "stellar-strkey 0.0.16",
- "stellar-xdr",
- "tempfile",
-]
-
-[[package]]
-name = "callsoro-compile"
-version = "0.1.0"
-dependencies = [
- "callsoro-syntax",
- "insta",
- "serde",
- "serde_json",
- "stellar-strkey 0.0.16",
- "stellar-xdr",
-]
-
-[[package]]
-name = "callsoro-exec"
-version = "0.1.0"
-dependencies = [
- "callsoro-compile",
- "ed25519-dalek",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "stellar-strkey 0.0.16",
- "stellar-xdr",
- "wasmparser",
-]
-
-[[package]]
-name = "callsoro-syntax"
-version = "0.1.0"
-dependencies = [
- "insta",
-]
-
-[[package]]
 name = "cc"
 version = "1.2.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -956,6 +896,66 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8fd00f0bb2e90d81d1044c2b32617f68fcb9fa3bb7640c23e9c748e53fb30934"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "quasar-check"
+version = "0.1.0"
+dependencies = [
+ "insta",
+ "quasar-compile",
+ "quasar-syntax",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "quasar-cli"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "quasar-check",
+ "quasar-compile",
+ "quasar-exec",
+ "quasar-syntax",
+ "serde_json",
+ "stellar-strkey 0.0.16",
+ "stellar-xdr",
+ "tempfile",
+]
+
+[[package]]
+name = "quasar-compile"
+version = "0.1.0"
+dependencies = [
+ "insta",
+ "quasar-syntax",
+ "serde",
+ "serde_json",
+ "stellar-strkey 0.0.16",
+ "stellar-xdr",
+]
+
+[[package]]
+name = "quasar-exec"
+version = "0.1.0"
+dependencies = [
+ "ed25519-dalek",
+ "quasar-compile",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "stellar-strkey 0.0.16",
+ "stellar-xdr",
+ "wasmparser",
+]
+
+[[package]]
+name = "quasar-syntax"
+version = "0.1.0"
+dependencies = [
+ "insta",
 ]
 
 [[package]]
