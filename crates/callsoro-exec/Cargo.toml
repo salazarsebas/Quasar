@@ -12,3 +12,4 @@ stellar-strkey = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+wasmparser = { workspace = true }

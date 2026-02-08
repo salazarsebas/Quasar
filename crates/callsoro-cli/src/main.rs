@@ -3,7 +3,7 @@ use std::process;
 
 use callsoro_check::{Diagnostic, Resolver, Severity, Validator};
 use callsoro_compile::{Compiler, JsonIR, XdrCompiler};
-use callsoro_exec::Simulator;
+use callsoro_exec::{AbiImporter, Simulator};
 use callsoro_syntax::ast::{Call, ConstDecl, ConstValue, Directive, MapEntry, Program, Value};
 use callsoro_syntax::lexer::Lexer;
 use callsoro_syntax::parser::Parser;
@@ -66,6 +66,20 @@ enum Commands {
         /// Overwrite the file in-place
         #[arg(long)]
         write: bool,
+    },
+    /// Import a deployed contract's ABI from the network
+    Import {
+        /// Contract address (C...)
+        contract_id: String,
+        /// Network name (testnet, mainnet, futurenet)
+        #[arg(long, default_value = "testnet")]
+        network: String,
+        /// RPC endpoint URL (overrides network default)
+        #[arg(long)]
+        rpc_url: Option<String>,
+        /// Output file (default: stdout)
+        #[arg(short)]
+        o: Option<String>,
     },
     /// Print compiler version
     Version,
@@ -578,6 +592,44 @@ fn main() {
                 });
             } else {
                 print!("{}", formatted);
+            }
+        }
+
+        Commands::Import {
+            contract_id,
+            network,
+            rpc_url,
+            o,
+        } => {
+            let url = match callsoro_exec::simulator::resolve_rpc_url(rpc_url.as_deref(), &network)
+            {
+                Ok(u) => u,
+                Err(e) => {
+                    eprintln!("{}{}error{}: {}", c.red, c.bold, c.reset, e);
+                    process::exit(1);
+                }
+            };
+
+            let importer = AbiImporter::new(&url);
+            let abi = match importer.import(&contract_id) {
+                Ok(a) => a,
+                Err(e) => {
+                    eprintln!("{}{}error{}: {}", c.red, c.bold, c.reset, e);
+                    process::exit(1);
+                }
+            };
+
+            let json = serde_json::to_string_pretty(&abi).expect("JSON serialization failed");
+            if let Some(output_path) = o {
+                fs::write(&output_path, &json).unwrap_or_else(|e| {
+                    eprintln!(
+                        "{}{}error{}: cannot write {}: {}",
+                        c.red, c.bold, c.reset, output_path, e
+                    );
+                    process::exit(1);
+                });
+            } else {
+                println!("{}", json);
             }
         }
 
@@ -1113,6 +1165,60 @@ mod tests {
         assert!(
             !stderr.contains("no default RPC URL"),
             "should resolve default testnet URL: {}",
+            stderr
+        );
+    }
+
+    // ---- Import ----
+
+    #[test]
+    fn import_help_shows_subcommand() {
+        build_binary();
+        let output = Command::new(cargo_bin())
+            .args(["import", "--help"])
+            .output()
+            .expect("failed to run");
+        assert!(output.status.success());
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.contains("--network"), "stdout: {}", stdout);
+        assert!(stdout.contains("--rpc-url"), "stdout: {}", stdout);
+    }
+
+    #[test]
+    fn import_unreachable_rpc_exits_1() {
+        build_binary();
+        let output = Command::new(cargo_bin())
+            .args([
+                "import",
+                "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+                "--rpc-url",
+                "http://127.0.0.1:1",
+            ])
+            .arg("--no-color")
+            .output()
+            .expect("failed to run");
+        assert!(!output.status.success(), "should exit 1 on unreachable RPC");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("error"),
+            "stderr should contain error: {}",
+            stderr
+        );
+    }
+
+    #[test]
+    fn import_invalid_contract_id_exits_1() {
+        build_binary();
+        let output = Command::new(cargo_bin())
+            .args(["import", "INVALID", "--rpc-url", "http://127.0.0.1:1"])
+            .arg("--no-color")
+            .output()
+            .expect("failed to run");
+        assert!(!output.status.success(), "should exit 1 on invalid ID");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("invalid contract ID"),
+            "stderr should mention invalid contract ID: {}",
             stderr
         );
     }

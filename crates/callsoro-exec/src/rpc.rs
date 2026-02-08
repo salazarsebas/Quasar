@@ -37,6 +37,13 @@ impl RpcClient {
         parse_simulate_response(&response)
     }
 
+    /// Fetch ledger entries by their base64-encoded XDR keys.
+    pub fn get_ledger_entries(&self, keys: &[String]) -> Result<Value, SimulationError> {
+        let body = build_jsonrpc_request("getLedgerEntries", json!({ "keys": keys }));
+        let response = self.send_request(&body)?;
+        parse_ledger_entries_response(&response)
+    }
+
     /// Send a JSON-RPC request and return the parsed JSON body.
     fn send_request(&self, body: &Value) -> Result<Value, SimulationError> {
         let resp = self
@@ -138,6 +145,25 @@ pub(crate) fn parse_simulate_response(response: &Value) -> Result<Value, Simulat
     Ok(result.clone())
 }
 
+/// Parse a `getLedgerEntries` response, extracting the result portion.
+pub(crate) fn parse_ledger_entries_response(response: &Value) -> Result<Value, SimulationError> {
+    if let Some(error) = response.get("error") {
+        let code = error.get("code").and_then(|c| c.as_i64()).unwrap_or(0);
+        let message = error
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("unknown error")
+            .to_string();
+        return Err(SimulationError::RpcError { code, message });
+    }
+
+    let result = response
+        .get("result")
+        .ok_or_else(|| SimulationError::InvalidResponse("missing 'result' field".to_string()))?;
+
+    Ok(result.clone())
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -212,6 +238,53 @@ mod tests {
         assert_eq!(result["transactionData"], "AAAA");
         assert_eq!(result["minResourceFee"], "12345");
         assert_eq!(result["cost"]["cpuInsns"], "100000");
+    }
+
+    #[test]
+    fn ledger_entries_request_format() {
+        let body = build_jsonrpc_request("getLedgerEntries", json!({ "keys": ["AAAA", "BBBB"] }));
+        assert_eq!(body["method"], "getLedgerEntries");
+        assert_eq!(body["params"]["keys"][0], "AAAA");
+        assert_eq!(body["params"]["keys"][1], "BBBB");
+    }
+
+    #[test]
+    fn parse_ledger_entries_success() {
+        let response = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+                "entries": [{
+                    "key": "AAAA",
+                    "xdr": "BBBB",
+                    "lastModifiedLedgerSeq": 100
+                }],
+                "latestLedger": 200
+            }
+        });
+        let result = parse_ledger_entries_response(&response).unwrap();
+        assert_eq!(result["entries"][0]["xdr"], "BBBB");
+        assert_eq!(result["latestLedger"], 200);
+    }
+
+    #[test]
+    fn parse_ledger_entries_error() {
+        let response = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+                "code": -32600,
+                "message": "invalid params"
+            }
+        });
+        let err = parse_ledger_entries_response(&response).unwrap_err();
+        match err {
+            SimulationError::RpcError { code, message } => {
+                assert_eq!(code, -32600);
+                assert_eq!(message, "invalid params");
+            }
+            other => panic!("expected RpcError, got {:?}", other),
+        }
     }
 
     #[test]
