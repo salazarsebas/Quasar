@@ -10,6 +10,13 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/salazarsebas/quasar/actions/workflows/ci.yml"><img src="https://github.com/salazarsebas/quasar/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
+  <a href="https://github.com/salazarsebas/quasar"><img src="https://img.shields.io/badge/version-0.1.0-orange.svg" alt="Version" /></a>
+</p>
+
+<p align="center">
+  <a href="USAGE.md">Usage Guide</a> &middot;
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#syntax">Syntax</a> &middot;
   <a href="#architecture">Architecture</a> &middot;

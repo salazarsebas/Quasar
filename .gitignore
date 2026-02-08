@@ -7,20 +7,17 @@
 # Rust
 /target
 **/*.rs.bk
+Cargo.lock
 
 # Insta snapshot pending files (accepted .snap files ARE committed)
 *.snap.new
-
-# Node (just in case)
-node_modules/
-npm-debug.log
-yarn-error.log
 
 # IDEs & Editors
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
 
 # AI / Agent configurations
 .claude/
